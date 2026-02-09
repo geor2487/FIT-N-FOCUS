@@ -173,19 +173,19 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
 
-  // フェーズ: 'ready' | 'work' | 'exercise-ready' | 'exercise' | 'interval' | 'rest'
+  // フェーズ: 'ready' | 'work' | 'select-exercise' | 'exercise-ready' | 'exercise' | 'interval' | 'rest'
   const [phase, setPhase] = useState('ready');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [completedCycles, setCompletedCycles] = useState(0);
   const [selectedExercise, setSelectedExercise] = useState(exerciseMenu[0]);
   const [currentSet, setCurrentSet] = useState(1);
+  const [workSessionSeconds, setWorkSessionSeconds] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [exerciseHistory, setExerciseHistory] = useState([]);
-  const [totalCyclesAllTime, setTotalCyclesAllTime] = useState(0);
+  const [totalWorkSecondsAllTime, setTotalWorkSecondsAllTime] = useState(0);
   
   // 設定
   const [workMinutes, setWorkMinutes] = useState(25);
@@ -222,7 +222,7 @@ function App() {
     try {
       await signOut(auth);
       setExerciseHistory([]);
-      setTotalCyclesAllTime(0);
+      setTotalWorkSecondsAllTime(0);
     } catch (error) {
       console.error('ログアウトエラー:', error);
     }
@@ -232,7 +232,7 @@ function App() {
   const fetchHistory = useCallback(async () => {
     if (!user) {
       setExerciseHistory([]);
-      setTotalCyclesAllTime(0);
+      setTotalWorkSecondsAllTime(0);
       return;
     }
 
@@ -250,16 +250,16 @@ function App() {
       });
       setExerciseHistory(history);
 
-      // 総サイクル数を計算
-      const totalCycles = history.reduce((sum, item) => sum + (item.cycles || 1), 0);
-      setTotalCyclesAllTime(totalCycles);
+      // 累計作業時間を計算
+      const totalWorkSecs = history.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
+      setTotalWorkSecondsAllTime(totalWorkSecs);
     } catch (error) {
       console.error('履歴の取得に失敗:', error);
     }
   }, [user]);
 
   // 運動履歴を保存（ユーザーIDを含める）
-  const saveExerciseHistory = useCallback(async (exercise, repsCompleted, setsCompleted) => {
+  const saveExerciseHistory = useCallback(async (exercise, repsCompleted, setsCompleted, workSecs) => {
     if (!user) return;
 
     try {
@@ -270,7 +270,7 @@ function App() {
         category: exercise.category,
         reps: repsCompleted,
         sets: setsCompleted,
-        cycles: 1,
+        workSeconds: workSecs,
         timestamp: Timestamp.now(),
         date: new Date().toLocaleDateString('ja-JP'),
       });
@@ -322,16 +322,19 @@ function App() {
 
   useEffect(() => {
     let interval = null;
-    
+
     if (isRunning && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft(time => time - 1);
+        // 作業フェーズ中は作業時間をカウント
+        if (phase === 'work') {
+          setWorkSessionSeconds(s => s + 1);
+        }
       }, 1000);
     } else if (isRunning && timeLeft === 0) {
       if (phase === 'work') {
-        sendNotification('🏋️ 運動の時間です！', `${selectedExercise.name}を始めましょう`);
-        setPhase('exercise-ready');
-        setCurrentSet(1);
+        sendNotification('🏋️ 運動の時間です！', 'トレーニングメニューを選択してください');
+        setPhase('select-exercise');
         setIsRunning(false);
       } else if (phase === 'exercise') {
         if (currentSet < sets) {
@@ -339,11 +342,12 @@ function App() {
           setPhase('interval');
           setTimeLeft(intervalSeconds);
         } else {
-          // 全セット完了 → 履歴保存
-          saveExerciseHistory(selectedExercise, reps, sets);
+          // 全セット完了 → 履歴保存（作業時間も含める）
+          saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
           sendNotification('✅ 運動完了！', `${restMinutes}分間休憩しましょう`);
           setPhase('rest');
           setTimeLeft(restMinutes * 60);
+          setWorkSessionSeconds(0);
         }
       } else if (phase === 'interval') {
         sendNotification('💪 次のセット！', `セット ${currentSet + 1}/${sets} を始めましょう`);
@@ -352,21 +356,26 @@ function App() {
         setIsRunning(false);
       } else if (phase === 'rest') {
         sendNotification('🔔 休憩終了', '作業を再開しましょう');
-        setCompletedCycles(c => c + 1);
         setPhase('work');
         setTimeLeft(workMinutes * 60);
       }
     }
-    
+
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps]);
+  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps, workSessionSeconds]);
 
   const startTimer = () => {
     if (phase === 'ready') {
       setPhase('work');
       setTimeLeft(workMinutes * 60);
+      setWorkSessionSeconds(0);
     }
     setIsRunning(true);
+  };
+
+  const confirmExerciseSelection = () => {
+    setPhase('exercise-ready');
+    setCurrentSet(1);
   };
 
   const startExercise = () => {
@@ -392,18 +401,19 @@ function App() {
         setPhase('interval');
         setTimeLeft(intervalSeconds);
       } else {
-        saveExerciseHistory(selectedExercise, reps, sets);
+        saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
         setPhase('rest');
         setTimeLeft(restMinutes * 60);
+        setWorkSessionSeconds(0);
       }
     } else if (phase === 'interval') {
       setCurrentSet(s => s + 1);
       setPhase('exercise-ready');
       setIsRunning(false);
     } else if (phase === 'rest') {
-      setCompletedCycles(c => c + 1);
       setPhase('work');
       setTimeLeft(workMinutes * 60);
+      setWorkSessionSeconds(0);
     }
   };
 
@@ -416,6 +426,7 @@ function App() {
   const getPhaseColor = () => {
     switch (phase) {
       case 'work': return '#3B82F6';
+      case 'select-exercise': return '#F59E0B';
       case 'exercise-ready': return '#F59E0B';
       case 'exercise': return '#10B981';
       case 'interval': return '#F59E0B';
@@ -427,6 +438,7 @@ function App() {
   const getPhaseLabel = () => {
     switch (phase) {
       case 'work': return '集中タイム';
+      case 'select-exercise': return 'メニュー選択';
       case 'exercise-ready': return '運動準備';
       case 'exercise': return 'エクササイズ';
       case 'interval': return 'インターバル';
@@ -435,11 +447,21 @@ function App() {
     }
   };
 
-  const requestNotificationPermission = () => {
-    if ('Notification' in window) {
-      Notification.requestPermission().then(permission => {
-        setNotificationPermission(permission);
-      });
+  // iOS判定
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    } catch (error) {
+      console.error('通知許可エラー:', error);
+      setNotificationPermission('unsupported');
     }
   };
 
@@ -447,6 +469,20 @@ function App() {
   const todayHistory = exerciseHistory.filter(
     item => item.date === new Date().toLocaleDateString('ja-JP')
   );
+
+  // 今日の作業時間（履歴から計算 + 現在のセッション）
+  const todayWorkSecondsFromHistory = todayHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
+  const totalTodayWorkSeconds = todayWorkSecondsFromHistory + (phase === 'work' ? workSessionSeconds : 0);
+
+  // 時間フォーマット（分と時間）
+  const formatWorkTime = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}時間${mins}分`;
+    }
+    return `${mins}分`;
+  };
 
   // 認証ロード中
   if (authLoading) {
@@ -511,7 +547,7 @@ function App() {
       </header>
 
       <main style={styles.main}>
-        {notificationPermission === 'default' && (
+        {notificationPermission === 'default' && !isIOS && (
           <div style={styles.notificationBanner}>
             <p style={styles.notificationText}>🔔 通知を許可すると、タイマー終了時にお知らせします</p>
             <button onClick={requestNotificationPermission} style={styles.notificationButton}>
@@ -519,15 +555,20 @@ function App() {
             </button>
           </div>
         )}
+        {isIOS && notificationPermission !== 'granted' && (
+          <div style={styles.notificationBanner}>
+            <p style={styles.notificationText}>📱 iOSでは通知音でお知らせします</p>
+          </div>
+        )}
 
         <div style={styles.stats}>
           <div style={styles.statItem}>
-            <span style={styles.statValue}>{completedCycles}</span>
-            <span style={styles.statLabel}>今日のサイクル</span>
+            <span style={styles.statValue}>{formatWorkTime(totalTodayWorkSeconds)}</span>
+            <span style={styles.statLabel}>今日の作業時間</span>
           </div>
           <div style={styles.statItem}>
-            <span style={styles.statValue}>{totalCyclesAllTime}</span>
-            <span style={styles.statLabel}>累計サイクル</span>
+            <span style={styles.statValue}>{todayHistory.length}</span>
+            <span style={styles.statLabel}>今日のトレーニング</span>
           </div>
         </div>
 
@@ -583,6 +624,38 @@ function App() {
             <div style={styles.restInfo}>
               <p style={styles.restMessage}>お疲れさまでした！</p>
               <p style={styles.restTip}>💧 水分補給をしましょう</p>
+            </div>
+          )}
+
+          {phase === 'select-exercise' && (
+            <div style={styles.selectExerciseContainer}>
+              <p style={styles.selectExerciseTitle}>トレーニングを選択</p>
+              <div style={styles.exerciseGrid}>
+                {exerciseMenu.map(exercise => (
+                  <div
+                    key={exercise.id}
+                    style={{
+                      ...styles.exerciseGridItem,
+                      ...(selectedExercise.id === exercise.id ? styles.exerciseGridItemSelected : {}),
+                    }}
+                    onClick={() => {
+                      setSelectedExercise(exercise);
+                      setReps(exercise.defaultReps);
+                      setSets(exercise.defaultSets);
+                    }}
+                  >
+                    <ExerciseIcon type={exercise.icon} size={40} />
+                    <span style={styles.exerciseGridName}>{exercise.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={styles.selectedExerciseDetail}>
+                <p style={styles.selectedDetailName}>{selectedExercise.name}</p>
+                <p style={styles.selectedDetailMeta}>{reps}回 × {sets}セット</p>
+              </div>
+              <button onClick={confirmExerciseSelection} style={styles.confirmExerciseButton}>
+                ✓ この運動で開始
+              </button>
             </div>
           )}
 
@@ -667,12 +740,12 @@ function App() {
             <div style={styles.modalContent}>
               <div style={styles.historyStats}>
                 <div style={styles.historyStatItem}>
-                  <span style={styles.historyStatValue}>{totalCyclesAllTime}</span>
-                  <span style={styles.historyStatLabel}>累計サイクル</span>
+                  <span style={styles.historyStatValue}>{formatWorkTime(totalWorkSecondsAllTime)}</span>
+                  <span style={styles.historyStatLabel}>累計作業時間</span>
                 </div>
                 <div style={styles.historyStatItem}>
                   <span style={styles.historyStatValue}>{exerciseHistory.length}</span>
-                  <span style={styles.historyStatLabel}>運動回数</span>
+                  <span style={styles.historyStatLabel}>累計トレーニング</span>
                 </div>
               </div>
               
@@ -967,7 +1040,7 @@ const styles = {
     textAlign: 'center',
   },
   notificationText: {
-    margin: '0 0 12px 0',
+    margin: 0,
     fontSize: '14px',
     color: '#FCD34D',
   },
@@ -1371,6 +1444,70 @@ const styles = {
     color: '#F1F5F9',
     fontSize: '16px',
     boxSizing: 'border-box',
+  },
+  selectExerciseContainer: {
+    marginTop: '24px',
+  },
+  selectExerciseTitle: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#F59E0B',
+    marginBottom: '16px',
+    textAlign: 'center',
+  },
+  exerciseGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '8px',
+    marginBottom: '16px',
+  },
+  exerciseGridItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '12px 8px',
+    background: 'rgba(255,255,255,0.05)',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    border: '2px solid transparent',
+    transition: 'all 0.2s ease',
+  },
+  exerciseGridItemSelected: {
+    background: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981',
+  },
+  exerciseGridName: {
+    fontSize: '11px',
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: '1.2',
+  },
+  selectedExerciseDetail: {
+    textAlign: 'center',
+    marginBottom: '16px',
+  },
+  selectedDetailName: {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#10B981',
+    margin: '0 0 4px 0',
+  },
+  selectedDetailMeta: {
+    fontSize: '14px',
+    color: '#94A3B8',
+    margin: 0,
+  },
+  confirmExerciseButton: {
+    width: '100%',
+    background: '#10B981',
+    color: '#fff',
+    border: 'none',
+    padding: '16px',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '600',
   },
 };
 
