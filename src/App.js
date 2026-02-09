@@ -76,12 +76,11 @@ const exerciseMenu = [
 
 const categories = ['スクワット', '腕立て', '腹筋', '瞑想'];
 
-// 静止ピクトグラム（各種目ごとに異なるデザイン）
+// 静止ピクトグラム
 const ExerciseIcon = ({ type, size = 80 }) => {
   const icons = {
     'squat-basic': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* ノーマルスクワット - 立ち姿勢 */}
         <circle cx="50" cy="18" r="10" fill="#94A3B8"/>
         <line x1="50" y1="28" x2="50" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="50" y1="35" x2="35" y2="45" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
@@ -94,7 +93,6 @@ const ExerciseIcon = ({ type, size = 80 }) => {
     ),
     'squat-wide': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* ワイドスクワット - 足を広げた姿勢 */}
         <circle cx="50" cy="20" r="10" fill="#94A3B8"/>
         <line x1="50" y1="30" x2="50" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="50" y1="38" x2="30" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
@@ -107,7 +105,6 @@ const ExerciseIcon = ({ type, size = 80 }) => {
     ),
     'squat-pulse': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* パルススクワット - しゃがんだ姿勢 */}
         <circle cx="50" cy="25" r="10" fill="#94A3B8"/>
         <line x1="50" y1="35" x2="50" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="50" y1="42" x2="30" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
@@ -116,14 +113,12 @@ const ExerciseIcon = ({ type, size = 80 }) => {
         <line x1="50" y1="55" x2="65" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="35" y1="70" x2="30" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="65" y1="70" x2="70" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        {/* パルスの矢印 */}
         <path d="M 80 45 L 85 50 L 80 55" stroke="#64748B" strokeWidth="2" fill="none"/>
         <path d="M 80 55 L 85 60 L 80 65" stroke="#64748B" strokeWidth="2" fill="none"/>
       </svg>
     ),
     'pushup-desk': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* デスク腕立て - デスクに手をついた姿勢 */}
         <rect x="10" y="40" width="35" height="5" rx="2" fill="#64748B"/>
         <rect x="10" y="45" width="5" height="25" fill="#64748B"/>
         <rect x="40" y="45" width="5" height="25" fill="#64748B"/>
@@ -136,37 +131,30 @@ const ExerciseIcon = ({ type, size = 80 }) => {
     ),
     'pushup-normal': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* ノーマル腕立て - 床での姿勢 */}
         <circle cx="20" cy="40" r="8" fill="#94A3B8"/>
         <line x1="28" y1="42" x2="70" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="35" y1="47" x2="30" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="50" y1="50" x2="50" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="70" y1="55" x2="85" y2="60" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="85" y1="60" x2="90" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        {/* 床のライン */}
         <line x1="25" y1="72" x2="95" y2="72" stroke="#64748B" strokeWidth="2"/>
       </svg>
     ),
     'situp': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* 腹筋・クランチ */}
         <circle cx="35" cy="35" r="8" fill="#94A3B8"/>
         <line x1="40" y1="40" x2="55" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="38" y1="38" x2="30" y2="30" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="55" y1="55" x2="75" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
         <line x1="75" y1="50" x2="85" y2="60" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        {/* マット */}
         <line x1="20" y1="70" x2="90" y2="70" stroke="#64748B" strokeWidth="3" strokeLinecap="round"/>
       </svg>
     ),
     'meditation': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        {/* 瞑想 - 座禅のポーズ */}
         <circle cx="50" cy="25" r="10" fill="#94A3B8"/>
         <line x1="50" y1="35" x2="50" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        {/* 組んだ腕 */}
         <path d="M 35 50 Q 50 58 65 50" stroke="#94A3B8" strokeWidth="4" fill="none" strokeLinecap="round"/>
-        {/* 組んだ足 */}
         <path d="M 30 70 Q 50 75 70 70" stroke="#94A3B8" strokeWidth="4" fill="none" strokeLinecap="round"/>
         <ellipse cx="50" cy="72" rx="25" ry="8" fill="none" stroke="#64748B" strokeWidth="2"/>
       </svg>
@@ -177,6 +165,7 @@ const ExerciseIcon = ({ type, size = 80 }) => {
 };
 
 function App() {
+  // フェーズ: 'ready' | 'work' | 'exercise-ready' | 'exercise' | 'interval' | 'rest'
   const [phase, setPhase] = useState('ready');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
@@ -185,17 +174,42 @@ function App() {
   const [completedCycles, setCompletedCycles] = useState(0);
   const [selectedExercise, setSelectedExercise] = useState(exerciseMenu[0]);
   const [currentSet, setCurrentSet] = useState(1);
+  const [notificationPermission, setNotificationPermission] = useState('default');
   
   // 設定
   const [workMinutes, setWorkMinutes] = useState(25);
-  const [exerciseMinutes, setExerciseMinutes] = useState(3);
+  const [exerciseSeconds, setExerciseSeconds] = useState(30);
+  const [intervalSeconds, setIntervalSeconds] = useState(10);
   const [restMinutes, setRestMinutes] = useState(5);
   const [reps, setReps] = useState(exerciseMenu[0].defaultReps);
   const [sets, setSets] = useState(exerciseMenu[0].defaultSets);
   
   const audioRef = useRef(null);
 
-  const playSound = useCallback(() => {
+  // 通知の許可をリクエスト
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationPermission(permission);
+        });
+      }
+    }
+  }, []);
+
+  // 通知を送信
+  const sendNotification = useCallback((title, body) => {
+    // ブラウザ通知
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, {
+        body: body,
+        icon: '⏱️',
+        requireInteraction: true,
+      });
+    }
+    
+    // 音を鳴らす
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
@@ -217,23 +231,33 @@ function App() {
         setTimeLeft(time => time - 1);
       }, 1000);
     } else if (isRunning && timeLeft === 0) {
-      playSound();
-      
       if (phase === 'work') {
-        setPhase('exercise');
+        // 作業終了 → 運動準備画面へ（ユーザーが手動でスタート）
+        sendNotification('🏋️ 運動の時間です！', `${selectedExercise.name}を始めましょう`);
+        setPhase('exercise-ready');
         setCurrentSet(1);
-        setTimeLeft(exerciseMinutes * 60);
+        setIsRunning(false);
       } else if (phase === 'exercise') {
         if (currentSet < sets) {
-          // 次のセットへ
-          setCurrentSet(s => s + 1);
-          setTimeLeft(exerciseMinutes * 60);
+          // セット間インターバル
+          sendNotification('⏸️ インターバル', `${intervalSeconds}秒休憩`);
+          setPhase('interval');
+          setTimeLeft(intervalSeconds);
         } else {
           // 全セット完了 → 休憩
+          sendNotification('✅ 運動完了！', `${restMinutes}分間休憩しましょう`);
           setPhase('rest');
           setTimeLeft(restMinutes * 60);
         }
+      } else if (phase === 'interval') {
+        // インターバル終了 → 次のセット準備
+        sendNotification('💪 次のセット！', `セット ${currentSet + 1}/${sets} を始めましょう`);
+        setCurrentSet(s => s + 1);
+        setPhase('exercise-ready');
+        setIsRunning(false);
       } else if (phase === 'rest') {
+        // 休憩終了 → 次のサイクル
+        sendNotification('🔔 休憩終了', '作業を再開しましょう');
         setCompletedCycles(c => c + 1);
         setPhase('work');
         setTimeLeft(workMinutes * 60);
@@ -241,13 +265,19 @@ function App() {
     }
     
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseMinutes, restMinutes, playSound]);
+  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification]);
 
   const startTimer = () => {
     if (phase === 'ready') {
       setPhase('work');
       setTimeLeft(workMinutes * 60);
     }
+    setIsRunning(true);
+  };
+
+  const startExercise = () => {
+    setPhase('exercise');
+    setTimeLeft(exerciseSeconds);
     setIsRunning(true);
   };
 
@@ -265,12 +295,16 @@ function App() {
   const skipPhase = () => {
     if (phase === 'exercise') {
       if (currentSet < sets) {
-        setCurrentSet(s => s + 1);
-        setTimeLeft(exerciseMinutes * 60);
+        setPhase('interval');
+        setTimeLeft(intervalSeconds);
       } else {
         setPhase('rest');
         setTimeLeft(restMinutes * 60);
       }
+    } else if (phase === 'interval') {
+      setCurrentSet(s => s + 1);
+      setPhase('exercise-ready');
+      setIsRunning(false);
     } else if (phase === 'rest') {
       setCompletedCycles(c => c + 1);
       setPhase('work');
@@ -287,7 +321,9 @@ function App() {
   const getPhaseColor = () => {
     switch (phase) {
       case 'work': return '#3B82F6';
+      case 'exercise-ready': return '#F59E0B';
       case 'exercise': return '#10B981';
+      case 'interval': return '#F59E0B';
       case 'rest': return '#8B5CF6';
       default: return '#6B7280';
     }
@@ -296,21 +332,32 @@ function App() {
   const getPhaseLabel = () => {
     switch (phase) {
       case 'work': return '集中タイム';
+      case 'exercise-ready': return '運動準備';
       case 'exercise': return 'エクササイズ';
+      case 'interval': return 'インターバル';
       case 'rest': return '休憩';
       default: return 'スタンバイ';
+    }
+  };
+
+  // 通知許可をリクエストするボタン
+  const requestNotificationPermission = () => {
+    if ('Notification' in window) {
+      Notification.requestPermission().then(permission => {
+        setNotificationPermission(permission);
+      });
     }
   };
 
   return (
     <div style={styles.container}>
       <audio ref={audioRef} preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp2ckIZ5cHN+i5afopmRhn57goqPlJGLgXl1d3+Ij5KPioJ6dnd9hYyPj4qDenV2fIOKjY2Ig3t3d3yDiYuKhoB6eHp/hIiJhoJ9eXl7f4OGhoSAfHp6fIGEhYSBfnt6e36Bg4OCf3x7e31/gYKBfnx7e31+gICAf317fH1+f4CAfn18fX5+f39+fX19fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn4=" type="audio/wav" />
+        <source src="data:audio/wav;base64,UklGRl9vT19teleQAZm10teleQAAAAABAAEARKwAAESsAAABAAgAZGF0YU..." type="audio/wav" />
       </audio>
 
       <header style={styles.header}>
         <h1 style={styles.logo}>
-          FIT N' FOCUS
+          Fit Timer
         </h1>
         <div style={styles.headerButtons}>
           <button onClick={() => setShowMenu(true)} style={styles.menuButton}>
@@ -323,6 +370,16 @@ function App() {
       </header>
 
       <main style={styles.main}>
+        {/* 通知許可バナー */}
+        {notificationPermission === 'default' && (
+          <div style={styles.notificationBanner}>
+            <p style={styles.notificationText}>🔔 通知を許可すると、タイマー終了時にお知らせします</p>
+            <button onClick={requestNotificationPermission} style={styles.notificationButton}>
+              通知を許可
+            </button>
+          </div>
+        )}
+
         <div style={styles.stats}>
           <div style={styles.statItem}>
             <span style={styles.statValue}>{completedCycles}</span>
@@ -338,7 +395,8 @@ function App() {
             {formatTime(timeLeft)}
           </div>
           
-          {phase === 'exercise' && (
+          {/* 運動準備画面 */}
+          {phase === 'exercise-ready' && (
             <div style={styles.exerciseInfo}>
               <div style={styles.exerciseIconContainer}>
                 <ExerciseIcon type={selectedExercise.icon} size={100} />
@@ -351,9 +409,36 @@ function App() {
                 <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
               </div>
               <p style={styles.exerciseTip}>{selectedExercise.tip}</p>
+              <button onClick={startExercise} style={styles.startExerciseButton}>
+                ▶ 運動スタート
+              </button>
             </div>
           )}
 
+          {/* 運動中 */}
+          {phase === 'exercise' && (
+            <div style={styles.exerciseInfo}>
+              <div style={styles.exerciseIconContainer}>
+                <ExerciseIcon type={selectedExercise.icon} size={100} />
+              </div>
+              <h2 style={styles.exerciseName}>{selectedExercise.name}</h2>
+              <div style={styles.exerciseStats}>
+                <span style={styles.exerciseStat}>{reps}回</span>
+                <span style={styles.exerciseStatDivider}>×</span>
+                <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
+              </div>
+            </div>
+          )}
+
+          {/* インターバル */}
+          {phase === 'interval' && (
+            <div style={styles.restInfo}>
+              <p style={styles.restMessage}>セット間休憩</p>
+              <p style={styles.restTip}>次のセット: {currentSet + 1}/{sets}</p>
+            </div>
+          )}
+
+          {/* 休憩中 */}
           {phase === 'rest' && (
             <div style={styles.restInfo}>
               <p style={styles.restMessage}>お疲れさまでした！</p>
@@ -361,13 +446,14 @@ function App() {
             </div>
           )}
 
+          {/* スタンバイ */}
           {phase === 'ready' && (
             <div style={styles.readyInfo}>
               <div style={styles.selectedExercisePreview}>
                 <ExerciseIcon type={selectedExercise.icon} size={80} />
                 <p style={styles.selectedExerciseName}>次の運動: {selectedExercise.name}</p>
                 <p style={styles.selectedExerciseMeta}>
-                  {reps}回 × {sets}セット / 各{exerciseMinutes}分
+                  {reps}回 × {sets}セット / 各{exerciseSeconds}秒
                 </p>
               </div>
             </div>
@@ -375,19 +461,38 @@ function App() {
         </div>
 
         <div style={styles.controls}>
-          {!isRunning ? (
+          {phase === 'ready' && (
             <button onClick={startTimer} style={{...styles.primaryButton, backgroundColor: getPhaseColor()}}>
-              {phase === 'ready' ? '▶ スタート' : '▶ 再開'}
+              ▶ スタート
             </button>
-          ) : (
+          )}
+          
+          {phase === 'work' && !isRunning && (
+            <button onClick={() => setIsRunning(true)} style={{...styles.primaryButton, backgroundColor: getPhaseColor()}}>
+              ▶ 再開
+            </button>
+          )}
+          
+          {phase === 'work' && isRunning && (
             <button onClick={pauseTimer} style={styles.pauseButton}>
               ⏸ 一時停止
             </button>
           )}
-          
-          {(phase === 'exercise' || phase === 'rest') && isRunning && (
-            <button onClick={skipPhase} style={styles.skipButton}>
-              スキップ →
+
+          {(phase === 'exercise' || phase === 'interval' || phase === 'rest') && isRunning && (
+            <>
+              <button onClick={pauseTimer} style={styles.pauseButton}>
+                ⏸ 一時停止
+              </button>
+              <button onClick={skipPhase} style={styles.skipButton}>
+                スキップ →
+              </button>
+            </>
+          )}
+
+          {(phase === 'exercise' || phase === 'interval' || phase === 'rest') && !isRunning && (
+            <button onClick={() => setIsRunning(true)} style={{...styles.primaryButton, backgroundColor: getPhaseColor()}}>
+              ▶ 再開
             </button>
           )}
           
@@ -404,7 +509,7 @@ function App() {
         <div style={styles.modalOverlay} onClick={() => setShowMenu(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>運動メニュー</h2>
+              <h2 style={styles.modalTitle}>トレーニングメニュー</h2>
               <button onClick={() => setShowMenu(false)} style={styles.closeButton}>✕</button>
             </div>
             <div style={styles.modalContent}>
@@ -464,14 +569,25 @@ function App() {
                   />
                 </div>
                 <div style={styles.settingItem}>
-                  <label style={styles.settingLabel}>運動時間（分/セット）</label>
+                  <label style={styles.settingLabel}>運動時間（秒/セット）</label>
                   <input
                     type="number"
-                    value={exerciseMinutes}
-                    onChange={e => setExerciseMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                    value={exerciseSeconds}
+                    onChange={e => setExerciseSeconds(Math.max(10, parseInt(e.target.value) || 10))}
                     style={styles.settingInput}
-                    min="1"
-                    max="30"
+                    min="10"
+                    max="300"
+                  />
+                </div>
+                <div style={styles.settingItem}>
+                  <label style={styles.settingLabel}>インターバル（秒）</label>
+                  <input
+                    type="number"
+                    value={intervalSeconds}
+                    onChange={e => setIntervalSeconds(Math.max(5, parseInt(e.target.value) || 5))}
+                    style={styles.settingInput}
+                    min="5"
+                    max="60"
                   />
                 </div>
                 <div style={styles.settingItem}>
@@ -511,15 +627,6 @@ function App() {
                     max="10"
                   />
                 </div>
-              </div>
-
-              <div style={styles.settingNote}>
-                <p>📚 研究に基づく推奨：</p>
-                <ul style={styles.settingNoteList}>
-                  <li>作業: 25〜52分で集中力を維持</li>
-                  <li>運動: 3〜6分で効果的にリフレッシュ</li>
-                  <li>休憩: 5〜10分で心身を回復</li>
-                </ul>
               </div>
             </div>
           </div>
@@ -576,6 +683,29 @@ const styles = {
     maxWidth: '480px',
     margin: '0 auto',
     padding: '32px 20px',
+  },
+  notificationBanner: {
+    background: 'rgba(245, 158, 11, 0.2)',
+    border: '1px solid rgba(245, 158, 11, 0.5)',
+    borderRadius: '12px',
+    padding: '16px',
+    marginBottom: '24px',
+    textAlign: 'center',
+  },
+  notificationText: {
+    margin: '0 0 12px 0',
+    fontSize: '14px',
+    color: '#FCD34D',
+  },
+  notificationButton: {
+    background: '#F59E0B',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 20px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
   },
   stats: {
     display: 'flex',
@@ -655,7 +785,17 @@ const styles = {
   exerciseTip: {
     fontSize: '14px',
     color: '#FCD34D',
-    margin: 0,
+    margin: '0 0 20px 0',
+  },
+  startExerciseButton: {
+    background: '#10B981',
+    color: '#fff',
+    border: 'none',
+    padding: '16px 48px',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '18px',
+    fontWeight: '600',
   },
   restInfo: {
     marginTop: '24px',
@@ -876,17 +1016,6 @@ const styles = {
     color: '#F1F5F9',
     fontSize: '16px',
     boxSizing: 'border-box',
-  },
-  settingNote: {
-    background: 'rgba(59, 130, 246, 0.1)',
-    padding: '16px',
-    borderRadius: '12px',
-    fontSize: '14px',
-    color: '#94A3B8',
-  },
-  settingNoteList: {
-    margin: '8px 0 0 0',
-    paddingLeft: '20px',
   },
 };
 
