@@ -357,7 +357,7 @@ function App() {
 
       <header style={styles.header}>
         <h1 style={styles.logo}>
-          Fit Timer
+          FIT N' FOCUS
         </h1>
         <div style={styles.headerButtons}>
           <button onClick={() => setShowMenu(true)} style={styles.menuButton}>
