@@ -413,7 +413,7 @@ function App() {
         </h1>
         <div style={styles.headerButtons}>
           <button onClick={() => setShowHistory(true)} style={styles.historyButton}>
-            📊 履歴
+            履歴
           </button>
           <button onClick={() => setShowMenu(true)} style={styles.menuButton}>
             トレーニングメニュー
@@ -575,7 +575,7 @@ function App() {
         <div style={styles.modalOverlay} onClick={() => setShowHistory(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>📊 運動履歴</h2>
+              <h2 style={styles.modalTitle}>運動履歴</h2>
               <button onClick={() => setShowHistory(false)} style={styles.closeButton}>✕</button>
             </div>
             <div style={styles.modalContent}>
