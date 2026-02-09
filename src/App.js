@@ -65,13 +65,15 @@ const exerciseMenu = [
     tip: '💡 腰への負担が少なく、腹筋に集中できる！',
     icon: 'situp'
   },
-  { 
+  {
     id: 'meditation',
     category: '瞑想',
     name: 'マインドフルネス瞑想',
     description: '楽な姿勢で座り、呼吸に意識を集中させます',
     defaultReps: 1,
     defaultSets: 1,
+    defaultDuration: 300, // 5分
+    isMeditation: true,
     tip: '💡 集中力回復＆ストレス軽減に効果的！',
     icon: 'meditation'
   },
@@ -191,6 +193,7 @@ function App() {
   const [restMinutes, setRestMinutes] = useState(5);
   const [reps, setReps] = useState(exerciseMenu[0].defaultReps);
   const [sets, setSets] = useState(exerciseMenu[0].defaultSets);
+  const [meditationMinutes, setMeditationMinutes] = useState(5);
   
   const audioRef = useRef(null);
 
@@ -267,6 +270,7 @@ function App() {
         category: exercise.category,
         reps: repsCompleted,
         sets: setsCompleted,
+        isMeditation: exercise.isMeditation || false,
         workSeconds: workSecs,
         timestamp: Timestamp.now(),
         date: new Date().toLocaleDateString('ja-JP'),
@@ -331,7 +335,14 @@ function App() {
         setPhase('select-exercise');
         setIsRunning(false);
       } else if (phase === 'exercise') {
-        if (currentSet < sets) {
+        if (selectedExercise.isMeditation) {
+          // 瞑想完了 → 直接休憩へ
+          saveExerciseHistory(selectedExercise, meditationMinutes, 1, workSessionSeconds);
+          sendNotification('✅ 瞑想完了！', `${restMinutes}分間休憩しましょう`);
+          setPhase('rest');
+          setTimeLeft(restMinutes * 60);
+          setWorkSessionSeconds(0);
+        } else if (currentSet < sets) {
           sendNotification('⏸️ インターバル', `${intervalSeconds}秒休憩`);
           setPhase('interval');
           setTimeLeft(intervalSeconds);
@@ -356,7 +367,7 @@ function App() {
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps, workSessionSeconds]);
+  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps, workSessionSeconds, meditationMinutes]);
 
   const startTimer = () => {
     if (phase === 'ready') {
@@ -374,7 +385,11 @@ function App() {
 
   const startExercise = () => {
     setPhase('exercise');
-    setTimeLeft(exerciseSeconds);
+    if (selectedExercise.isMeditation) {
+      setTimeLeft(meditationMinutes * 60);
+    } else {
+      setTimeLeft(exerciseSeconds);
+    }
     setIsRunning(true);
   };
 
@@ -391,7 +406,12 @@ function App() {
 
   const skipPhase = () => {
     if (phase === 'exercise') {
-      if (currentSet < sets) {
+      if (selectedExercise.isMeditation) {
+        saveExerciseHistory(selectedExercise, meditationMinutes, 1, workSessionSeconds);
+        setPhase('rest');
+        setTimeLeft(restMinutes * 60);
+        setWorkSessionSeconds(0);
+      } else if (currentSet < sets) {
         setPhase('interval');
         setTimeLeft(intervalSeconds);
       } else {
@@ -578,14 +598,20 @@ function App() {
               </div>
               <h2 style={styles.exerciseName}>{selectedExercise.name}</h2>
               <p style={styles.exerciseDescription}>{selectedExercise.description}</p>
-              <div style={styles.exerciseStats}>
-                <span style={styles.exerciseStat}>{reps}回</span>
-                <span style={styles.exerciseStatDivider}>×</span>
-                <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
-              </div>
+              {selectedExercise.isMeditation ? (
+                <div style={styles.exerciseStats}>
+                  <span style={styles.exerciseStat}>{meditationMinutes}分間</span>
+                </div>
+              ) : (
+                <div style={styles.exerciseStats}>
+                  <span style={styles.exerciseStat}>{reps}回</span>
+                  <span style={styles.exerciseStatDivider}>×</span>
+                  <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
+                </div>
+              )}
               <p style={styles.exerciseTip}>{selectedExercise.tip}</p>
               <button onClick={startExercise} style={styles.startExerciseButton}>
-                ▶ 運動スタート
+                ▶ {selectedExercise.isMeditation ? '瞑想スタート' : '運動スタート'}
               </button>
             </div>
           )}
@@ -596,11 +622,17 @@ function App() {
                 <ExerciseIcon type={selectedExercise.icon} size={100} />
               </div>
               <h2 style={styles.exerciseName}>{selectedExercise.name}</h2>
-              <div style={styles.exerciseStats}>
-                <span style={styles.exerciseStat}>{reps}回</span>
-                <span style={styles.exerciseStatDivider}>×</span>
-                <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
-              </div>
+              {selectedExercise.isMeditation ? (
+                <div style={styles.exerciseStats}>
+                  <span style={styles.exerciseStat}>{meditationMinutes}分間の瞑想中</span>
+                </div>
+              ) : (
+                <div style={styles.exerciseStats}>
+                  <span style={styles.exerciseStat}>{reps}回</span>
+                  <span style={styles.exerciseStatDivider}>×</span>
+                  <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -633,6 +665,9 @@ function App() {
                       setSelectedExercise(exercise);
                       setReps(exercise.defaultReps);
                       setSets(exercise.defaultSets);
+                      if (exercise.isMeditation) {
+                        setMeditationMinutes(Math.floor(exercise.defaultDuration / 60));
+                      }
                     }}
                   >
                     <ExerciseIcon type={exercise.icon} size={40} />
@@ -642,37 +677,57 @@ function App() {
               </div>
               <div style={styles.selectedExerciseDetail}>
                 <p style={styles.selectedDetailName}>{selectedExercise.name}</p>
+                <p style={styles.selectedDetailDescription}>{selectedExercise.description}</p>
               </div>
-              <div style={styles.exerciseInputs}>
-                <div style={styles.exerciseInputGroup}>
-                  <label style={styles.exerciseInputLabel}>回数</label>
-                  <div style={styles.exerciseInputControl}>
-                    <button
-                      style={styles.exerciseInputButton}
-                      onClick={() => setReps(r => Math.max(1, r - 1))}
-                    >−</button>
-                    <span style={styles.exerciseInputValue}>{reps}</span>
-                    <button
-                      style={styles.exerciseInputButton}
-                      onClick={() => setReps(r => r + 1)}
-                    >+</button>
+              {selectedExercise.isMeditation ? (
+                <div style={styles.exerciseInputs}>
+                  <div style={styles.exerciseInputGroup}>
+                    <label style={styles.exerciseInputLabel}>時間（分）</label>
+                    <div style={styles.exerciseInputControl}>
+                      <button
+                        style={styles.exerciseInputButton}
+                        onClick={() => setMeditationMinutes(m => Math.max(1, m - 1))}
+                      >−</button>
+                      <span style={styles.exerciseInputValue}>{meditationMinutes}</span>
+                      <button
+                        style={styles.exerciseInputButton}
+                        onClick={() => setMeditationMinutes(m => m + 1)}
+                      >+</button>
+                    </div>
                   </div>
                 </div>
-                <div style={styles.exerciseInputGroup}>
-                  <label style={styles.exerciseInputLabel}>セット</label>
-                  <div style={styles.exerciseInputControl}>
-                    <button
-                      style={styles.exerciseInputButton}
-                      onClick={() => setSets(s => Math.max(1, s - 1))}
-                    >−</button>
-                    <span style={styles.exerciseInputValue}>{sets}</span>
-                    <button
-                      style={styles.exerciseInputButton}
-                      onClick={() => setSets(s => s + 1)}
-                    >+</button>
+              ) : (
+                <div style={styles.exerciseInputs}>
+                  <div style={styles.exerciseInputGroup}>
+                    <label style={styles.exerciseInputLabel}>回数</label>
+                    <div style={styles.exerciseInputControl}>
+                      <button
+                        style={styles.exerciseInputButton}
+                        onClick={() => setReps(r => Math.max(1, r - 1))}
+                      >−</button>
+                      <span style={styles.exerciseInputValue}>{reps}</span>
+                      <button
+                        style={styles.exerciseInputButton}
+                        onClick={() => setReps(r => r + 1)}
+                      >+</button>
+                    </div>
+                  </div>
+                  <div style={styles.exerciseInputGroup}>
+                    <label style={styles.exerciseInputLabel}>セット</label>
+                    <div style={styles.exerciseInputControl}>
+                      <button
+                        style={styles.exerciseInputButton}
+                        onClick={() => setSets(s => Math.max(1, s - 1))}
+                      >−</button>
+                      <span style={styles.exerciseInputValue}>{sets}</span>
+                      <button
+                        style={styles.exerciseInputButton}
+                        onClick={() => setSets(s => s + 1)}
+                      >+</button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               <button onClick={confirmExerciseSelection} style={styles.confirmExerciseButton}>
                 ✓ この運動で開始
               </button>
@@ -731,7 +786,9 @@ function App() {
             {todayHistory.slice(0, 3).map((item, index) => (
               <div key={index} style={styles.todaySummaryItem}>
                 <span>{item.exerciseName}</span>
-                <span style={styles.todaySummaryMeta}>{item.reps}回 × {item.sets}セット</span>
+                <span style={styles.todaySummaryMeta}>
+                  {item.isMeditation ? `${item.reps}分間` : `${item.reps}回 × ${item.sets}セット`}
+                </span>
               </div>
             ))}
           </div>
@@ -769,7 +826,7 @@ function App() {
                       <span style={styles.historyItemDate}>{item.date}</span>
                     </div>
                     <div style={styles.historyItemDetail}>
-                      {item.reps}回 × {item.sets}セット
+                      {item.isMeditation ? `${item.reps}分間` : `${item.reps}回 × ${item.sets}セット`}
                     </div>
                   </div>
                 ))
@@ -1458,7 +1515,13 @@ const styles = {
     fontSize: '18px',
     fontWeight: '600',
     color: '#10B981',
-    margin: '0 0 4px 0',
+    margin: '0 0 8px 0',
+  },
+  selectedDetailDescription: {
+    fontSize: '13px',
+    color: '#94A3B8',
+    margin: 0,
+    lineHeight: '1.4',
   },
   selectedDetailMeta: {
     fontSize: '14px',
