@@ -171,6 +171,7 @@ function App() {
   // 認証状態
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [loginError, setLoginError] = useState('');
 
   // フェーズ: 'ready' | 'work' | 'exercise-ready' | 'exercise' | 'interval' | 'rest'
   const [phase, setPhase] = useState('ready');
@@ -208,9 +209,11 @@ function App() {
   // ログイン
   const handleLogin = async () => {
     try {
+      setLoginError('');
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('ログインエラー:', error);
+      setLoginError(`エラー: ${error.code} - ${error.message}`);
     }
   };
 
@@ -473,6 +476,9 @@ function App() {
             Googleでログイン
           </button>
           <p style={styles.loginNote}>ログインすると運動履歴が保存されます</p>
+          {loginError && (
+            <p style={styles.loginError}>{loginError}</p>
+          )}
         </div>
       </div>
     );
@@ -877,6 +883,16 @@ const styles = {
     fontSize: '14px',
     color: '#64748B',
     marginTop: '24px',
+  },
+  loginError: {
+    fontSize: '14px',
+    color: '#F87171',
+    marginTop: '16px',
+    padding: '12px',
+    background: 'rgba(248, 113, 113, 0.1)',
+    borderRadius: '8px',
+    maxWidth: '400px',
+    wordBreak: 'break-all',
   },
   logoutButton: {
     background: 'rgba(248, 113, 113, 0.2)',
