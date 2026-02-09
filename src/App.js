@@ -195,7 +195,8 @@ function App() {
   const [sets, setSets] = useState(exerciseMenu[0].defaultSets);
   const [meditationMinutes, setMeditationMinutes] = useState(5);
   
-  const audioRef = useRef(null);
+  const timerRef = useRef(null);
+  const lastTickRef = useRef(Date.now());
 
   // 認証状態を監視
   useEffect(() => {
@@ -298,11 +299,40 @@ function App() {
     }
   }, []);
 
-  // 通知音を鳴らす
+  // 通知音を鳴らす（Web Audio API使用）
   const playSound = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+
+      // 2回目の音（少し高い音）
+      setTimeout(() => {
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        osc2.frequency.value = 1000;
+        osc2.type = 'sine';
+        gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        osc2.start(audioContext.currentTime);
+        osc2.stop(audioContext.currentTime + 0.5);
+      }, 200);
+    } catch (e) {
+      console.log('Audio not supported');
     }
   }, []);
 
@@ -318,18 +348,36 @@ function App() {
     playSound();
   }, [playSound]);
 
+  // 画面が非表示になった時も時間を正確に計算するためのタイマー
   useEffect(() => {
-    let interval = null;
-
     if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft(time => time - 1);
-        // 作業フェーズ中は作業時間をカウント
-        if (phase === 'work') {
-          setWorkSessionSeconds(s => s + 1);
+      lastTickRef.current = Date.now();
+
+      timerRef.current = setInterval(() => {
+        const now = Date.now();
+        const elapsed = Math.floor((now - lastTickRef.current) / 1000);
+
+        if (elapsed >= 1) {
+          lastTickRef.current = now;
+          setTimeLeft(time => Math.max(0, time - elapsed));
+          // 作業フェーズ中は作業時間をカウント
+          if (phase === 'work') {
+            setWorkSessionSeconds(s => s + elapsed);
+          }
         }
-      }, 1000);
-    } else if (isRunning && timeLeft === 0) {
+      }, 100); // 100msごとにチェック（より正確に）
+
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+      };
+    }
+  }, [isRunning, phase]);
+
+  // タイマー終了時の処理
+  useEffect(() => {
+    if (isRunning && timeLeft === 0) {
       if (phase === 'work') {
         sendNotification('🏋️ 運動の時間です！', 'トレーニングメニューを選択してください');
         setPhase('select-exercise');
@@ -365,8 +413,6 @@ function App() {
         setTimeLeft(workMinutes * 60);
       }
     }
-
-    return () => clearInterval(interval);
   }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps, workSessionSeconds, meditationMinutes]);
 
   const startTimer = () => {
@@ -536,10 +582,6 @@ function App() {
 
   return (
     <div style={styles.container}>
-      <audio ref={audioRef} preload="auto">
-        <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YU..." type="audio/wav" />
-      </audio>
-
       <header style={styles.header}>
         <h1 style={styles.logo}>
           FIT N' FOCUS
@@ -578,8 +620,8 @@ function App() {
             <span style={styles.statLabel}>今日の作業時間</span>
           </div>
           <div style={styles.statItem}>
-            <span style={styles.statValue}>{todayHistory.length}</span>
-            <span style={styles.statLabel}>今日のトレーニング</span>
+            <span style={styles.statValue}>{todayHistory.length}回</span>
+            <span style={styles.statLabel}>今日のトレーニング回数</span>
           </div>
         </div>
 
