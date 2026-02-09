@@ -77,8 +77,6 @@ const exerciseMenu = [
   },
 ];
 
-const categories = ['スクワット', '腕立て', '腹筋', '瞑想'];
-
 // 静止ピクトグラム
 const ExerciseIcon = ({ type, size = 80 }) => {
   const icons = {
@@ -177,7 +175,6 @@ function App() {
   const [phase, setPhase] = useState('ready');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(exerciseMenu[0]);
@@ -297,6 +294,14 @@ function App() {
     }
   }, []);
 
+  // 通知音を鳴らす
+  const playSound = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  }, []);
+
   // 通知を送信
   const sendNotification = useCallback((title, body) => {
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -306,19 +311,8 @@ function App() {
         requireInteraction: true,
       });
     }
-    
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
-  }, []);
-
-  // 運動選択時にデフォルト値をセット
-  const selectExercise = (exercise) => {
-    setSelectedExercise(exercise);
-    setReps(exercise.defaultReps);
-    setSets(exercise.defaultSets);
-  };
+    playSound();
+  }, [playSound]);
 
   useEffect(() => {
     let interval = null;
@@ -534,9 +528,6 @@ function App() {
           <button onClick={() => setShowHistory(true)} style={styles.historyButton}>
             履歴
           </button>
-          <button onClick={() => setShowMenu(true)} style={styles.menuButton}>
-            トレーニングメニュー
-          </button>
           <button onClick={() => setShowSettings(true)} style={styles.settingsButton}>
             ⚙️
           </button>
@@ -651,7 +642,36 @@ function App() {
               </div>
               <div style={styles.selectedExerciseDetail}>
                 <p style={styles.selectedDetailName}>{selectedExercise.name}</p>
-                <p style={styles.selectedDetailMeta}>{reps}回 × {sets}セット</p>
+              </div>
+              <div style={styles.exerciseInputs}>
+                <div style={styles.exerciseInputGroup}>
+                  <label style={styles.exerciseInputLabel}>回数</label>
+                  <div style={styles.exerciseInputControl}>
+                    <button
+                      style={styles.exerciseInputButton}
+                      onClick={() => setReps(r => Math.max(1, r - 1))}
+                    >−</button>
+                    <span style={styles.exerciseInputValue}>{reps}</span>
+                    <button
+                      style={styles.exerciseInputButton}
+                      onClick={() => setReps(r => r + 1)}
+                    >+</button>
+                  </div>
+                </div>
+                <div style={styles.exerciseInputGroup}>
+                  <label style={styles.exerciseInputLabel}>セット</label>
+                  <div style={styles.exerciseInputControl}>
+                    <button
+                      style={styles.exerciseInputButton}
+                      onClick={() => setSets(s => Math.max(1, s - 1))}
+                    >−</button>
+                    <span style={styles.exerciseInputValue}>{sets}</span>
+                    <button
+                      style={styles.exerciseInputButton}
+                      onClick={() => setSets(s => s + 1)}
+                    >+</button>
+                  </div>
+                </div>
               </div>
               <button onClick={confirmExerciseSelection} style={styles.confirmExerciseButton}>
                 ✓ この運動で開始
@@ -659,17 +679,6 @@ function App() {
             </div>
           )}
 
-          {phase === 'ready' && (
-            <div style={styles.readyInfo}>
-              <div style={styles.selectedExercisePreview}>
-                <ExerciseIcon type={selectedExercise.icon} size={80} />
-                <p style={styles.selectedExerciseName}>次の運動: {selectedExercise.name}</p>
-                <p style={styles.selectedExerciseMeta}>
-                  {reps}回 × {sets}セット / 各{exerciseSeconds}秒
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         <div style={styles.controls}>
@@ -765,48 +774,6 @@ function App() {
                   </div>
                 ))
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 運動メニューモーダル */}
-      {showMenu && (
-        <div style={styles.modalOverlay} onClick={() => setShowMenu(false)}>
-          <div style={styles.modal} onClick={e => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>トレーニングメニュー</h2>
-              <button onClick={() => setShowMenu(false)} style={styles.closeButton}>✕</button>
-            </div>
-            <div style={styles.modalContent}>
-              <p style={styles.menuInstruction}>運動を1つ選んでください</p>
-              
-              {categories.map(category => (
-                <div key={category} style={styles.categorySection}>
-                  <h3 style={styles.categoryTitle}>{category}</h3>
-                  {exerciseMenu.filter(ex => ex.category === category).map(exercise => (
-                    <div
-                      key={exercise.id}
-                      style={{
-                        ...styles.exerciseItem,
-                        ...(selectedExercise.id === exercise.id ? styles.exerciseItemSelected : {}),
-                      }}
-                      onClick={() => selectExercise(exercise)}
-                    >
-                      <div style={styles.exerciseItemIcon}>
-                        <ExerciseIcon type={exercise.icon} size={50} />
-                      </div>
-                      <div style={styles.exerciseItemContent}>
-                        <span style={styles.exerciseItemName}>{exercise.name}</span>
-                        <span style={styles.exerciseItemDescription}>{exercise.description}</span>
-                      </div>
-                      {selectedExercise.id === exercise.id && (
-                        <div style={styles.checkMark}>✓</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -1508,6 +1475,45 @@ const styles = {
     cursor: 'pointer',
     fontSize: '16px',
     fontWeight: '600',
+  },
+  exerciseInputs: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '32px',
+    marginBottom: '20px',
+  },
+  exerciseInputGroup: {
+    textAlign: 'center',
+  },
+  exerciseInputLabel: {
+    display: 'block',
+    fontSize: '13px',
+    color: '#94A3B8',
+    marginBottom: '8px',
+  },
+  exerciseInputControl: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  exerciseInputButton: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.3)',
+    background: 'rgba(255,255,255,0.1)',
+    color: '#F1F5F9',
+    fontSize: '20px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exerciseInputValue: {
+    fontSize: '24px',
+    fontWeight: '700',
+    color: '#F1F5F9',
+    minWidth: '40px',
   },
 };
 
