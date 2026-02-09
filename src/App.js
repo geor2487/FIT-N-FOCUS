@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { db } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { db, auth, googleProvider } from './firebase';
+import { collection, addDoc, getDocs, query, orderBy, limit, Timestamp, where } from 'firebase/firestore';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
 // 運動メニュー
 const exerciseMenu = [
@@ -167,6 +168,10 @@ const ExerciseIcon = ({ type, size = 80 }) => {
 };
 
 function App() {
+  // 認証状態
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   // フェーズ: 'ready' | 'work' | 'exercise-ready' | 'exercise' | 'interval' | 'rest'
   const [phase, setPhase] = useState('ready');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
@@ -191,11 +196,47 @@ function App() {
   
   const audioRef = useRef(null);
 
-  // 履歴を取得
+  // 認証状態を監視
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ログイン
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error('ログインエラー:', error);
+    }
+  };
+
+  // ログアウト
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setExerciseHistory([]);
+      setTotalCyclesAllTime(0);
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+    }
+  };
+
+  // 履歴を取得（ユーザーIDでフィルタ）
   const fetchHistory = useCallback(async () => {
+    if (!user) {
+      setExerciseHistory([]);
+      setTotalCyclesAllTime(0);
+      return;
+    }
+
     try {
       const q = query(
         collection(db, 'exerciseHistory'),
+        where('userId', '==', user.uid),
         orderBy('timestamp', 'desc'),
         limit(50)
       );
@@ -205,19 +246,22 @@ function App() {
         history.push({ id: doc.id, ...doc.data() });
       });
       setExerciseHistory(history);
-      
+
       // 総サイクル数を計算
       const totalCycles = history.reduce((sum, item) => sum + (item.cycles || 1), 0);
       setTotalCyclesAllTime(totalCycles);
     } catch (error) {
       console.error('履歴の取得に失敗:', error);
     }
-  }, []);
+  }, [user]);
 
-  // 運動履歴を保存
+  // 運動履歴を保存（ユーザーIDを含める）
   const saveExerciseHistory = useCallback(async (exercise, repsCompleted, setsCompleted) => {
+    if (!user) return;
+
     try {
       await addDoc(collection(db, 'exerciseHistory'), {
+        userId: user.uid,
         exerciseId: exercise.id,
         exerciseName: exercise.name,
         category: exercise.category,
@@ -231,9 +275,9 @@ function App() {
     } catch (error) {
       console.error('保存に失敗:', error);
     }
-  }, [fetchHistory]);
+  }, [user, fetchHistory]);
 
-  // 初回読み込み
+  // ユーザーが変わったら履歴を再取得
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
@@ -401,6 +445,39 @@ function App() {
     item => item.date === new Date().toLocaleDateString('ja-JP')
   );
 
+  // 認証ロード中
+  if (authLoading) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.loadingContainer}>
+          <p style={styles.loadingText}>読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未ログイン時のログイン画面
+  if (!user) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.loginContainer}>
+          <h1 style={styles.loginLogo}>FIT N' FOCUS</h1>
+          <p style={styles.loginSubtitle}>集中と運動を習慣化するタイマーアプリ</p>
+          <button onClick={handleLogin} style={styles.googleLoginButton}>
+            <svg viewBox="0 0 24 24" width="20" height="20" style={{ marginRight: '12px' }}>
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Googleでログイン
+          </button>
+          <p style={styles.loginNote}>ログインすると運動履歴が保存されます</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       <audio ref={audioRef} preload="auto">
@@ -420,6 +497,9 @@ function App() {
           </button>
           <button onClick={() => setShowSettings(true)} style={styles.settingsButton}>
             ⚙️
+          </button>
+          <button onClick={handleLogout} style={styles.logoutButton}>
+            ログアウト
           </button>
         </div>
       </header>
@@ -749,6 +829,64 @@ const styles = {
     background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: '#F1F5F9',
+  },
+  loadingContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+  },
+  loadingText: {
+    fontSize: '18px',
+    color: '#94A3B8',
+  },
+  loginContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+    padding: '20px',
+  },
+  loginLogo: {
+    fontSize: '48px',
+    fontWeight: '700',
+    marginBottom: '16px',
+    color: '#F1F5F9',
+  },
+  loginSubtitle: {
+    fontSize: '16px',
+    color: '#94A3B8',
+    marginBottom: '48px',
+  },
+  googleLoginButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#fff',
+    color: '#333',
+    border: 'none',
+    padding: '16px 32px',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '600',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+  },
+  loginNote: {
+    fontSize: '14px',
+    color: '#64748B',
+    marginTop: '24px',
+  },
+  logoutButton: {
+    background: 'rgba(248, 113, 113, 0.2)',
+    border: '1px solid rgba(248, 113, 113, 0.5)',
+    color: '#F87171',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
   },
   header: {
     display: 'flex',
