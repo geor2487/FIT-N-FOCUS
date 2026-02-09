@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { db } from './firebase';
+import { collection, addDoc, getDocs, query, orderBy, limit, Timestamp } from 'firebase/firestore';
 
 // 運動メニュー
 const exerciseMenu = [
@@ -171,10 +173,13 @@ function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [completedCycles, setCompletedCycles] = useState(0);
   const [selectedExercise, setSelectedExercise] = useState(exerciseMenu[0]);
   const [currentSet, setCurrentSet] = useState(1);
   const [notificationPermission, setNotificationPermission] = useState('default');
+  const [exerciseHistory, setExerciseHistory] = useState([]);
+  const [totalCyclesAllTime, setTotalCyclesAllTime] = useState(0);
   
   // 設定
   const [workMinutes, setWorkMinutes] = useState(25);
@@ -185,6 +190,53 @@ function App() {
   const [sets, setSets] = useState(exerciseMenu[0].defaultSets);
   
   const audioRef = useRef(null);
+
+  // 履歴を取得
+  const fetchHistory = useCallback(async () => {
+    try {
+      const q = query(
+        collection(db, 'exerciseHistory'),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+      const querySnapshot = await getDocs(q);
+      const history = [];
+      querySnapshot.forEach((doc) => {
+        history.push({ id: doc.id, ...doc.data() });
+      });
+      setExerciseHistory(history);
+      
+      // 総サイクル数を計算
+      const totalCycles = history.reduce((sum, item) => sum + (item.cycles || 1), 0);
+      setTotalCyclesAllTime(totalCycles);
+    } catch (error) {
+      console.error('履歴の取得に失敗:', error);
+    }
+  }, []);
+
+  // 運動履歴を保存
+  const saveExerciseHistory = useCallback(async (exercise, repsCompleted, setsCompleted) => {
+    try {
+      await addDoc(collection(db, 'exerciseHistory'), {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        category: exercise.category,
+        reps: repsCompleted,
+        sets: setsCompleted,
+        cycles: 1,
+        timestamp: Timestamp.now(),
+        date: new Date().toLocaleDateString('ja-JP'),
+      });
+      fetchHistory();
+    } catch (error) {
+      console.error('保存に失敗:', error);
+    }
+  }, [fetchHistory]);
+
+  // 初回読み込み
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   // 通知の許可をリクエスト
   useEffect(() => {
@@ -200,7 +252,6 @@ function App() {
 
   // 通知を送信
   const sendNotification = useCallback((title, body) => {
-    // ブラウザ通知
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(title, {
         body: body,
@@ -209,7 +260,6 @@ function App() {
       });
     }
     
-    // 音を鳴らす
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
@@ -232,31 +282,28 @@ function App() {
       }, 1000);
     } else if (isRunning && timeLeft === 0) {
       if (phase === 'work') {
-        // 作業終了 → 運動準備画面へ（ユーザーが手動でスタート）
         sendNotification('🏋️ 運動の時間です！', `${selectedExercise.name}を始めましょう`);
         setPhase('exercise-ready');
         setCurrentSet(1);
         setIsRunning(false);
       } else if (phase === 'exercise') {
         if (currentSet < sets) {
-          // セット間インターバル
           sendNotification('⏸️ インターバル', `${intervalSeconds}秒休憩`);
           setPhase('interval');
           setTimeLeft(intervalSeconds);
         } else {
-          // 全セット完了 → 休憩
+          // 全セット完了 → 履歴保存
+          saveExerciseHistory(selectedExercise, reps, sets);
           sendNotification('✅ 運動完了！', `${restMinutes}分間休憩しましょう`);
           setPhase('rest');
           setTimeLeft(restMinutes * 60);
         }
       } else if (phase === 'interval') {
-        // インターバル終了 → 次のセット準備
         sendNotification('💪 次のセット！', `セット ${currentSet + 1}/${sets} を始めましょう`);
         setCurrentSet(s => s + 1);
         setPhase('exercise-ready');
         setIsRunning(false);
       } else if (phase === 'rest') {
-        // 休憩終了 → 次のサイクル
         sendNotification('🔔 休憩終了', '作業を再開しましょう');
         setCompletedCycles(c => c + 1);
         setPhase('work');
@@ -265,7 +312,7 @@ function App() {
     }
     
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification]);
+  }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps]);
 
   const startTimer = () => {
     if (phase === 'ready') {
@@ -298,6 +345,7 @@ function App() {
         setPhase('interval');
         setTimeLeft(intervalSeconds);
       } else {
+        saveExerciseHistory(selectedExercise, reps, sets);
         setPhase('rest');
         setTimeLeft(restMinutes * 60);
       }
@@ -340,7 +388,6 @@ function App() {
     }
   };
 
-  // 通知許可をリクエストするボタン
   const requestNotificationPermission = () => {
     if ('Notification' in window) {
       Notification.requestPermission().then(permission => {
@@ -349,10 +396,15 @@ function App() {
     }
   };
 
+  // 今日の運動をフィルタ
+  const todayHistory = exerciseHistory.filter(
+    item => item.date === new Date().toLocaleDateString('ja-JP')
+  );
+
   return (
     <div style={styles.container}>
       <audio ref={audioRef} preload="auto">
-        <source src="data:audio/wav;base64,UklGRl9vT19teleQAZm10teleQAAAAABAAEARKwAAESsAAABAAgAZGF0YU..." type="audio/wav" />
+        <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YU..." type="audio/wav" />
       </audio>
 
       <header style={styles.header}>
@@ -360,6 +412,9 @@ function App() {
           FIT N' FOCUS
         </h1>
         <div style={styles.headerButtons}>
+          <button onClick={() => setShowHistory(true)} style={styles.historyButton}>
+            📊 履歴
+          </button>
           <button onClick={() => setShowMenu(true)} style={styles.menuButton}>
             トレーニングメニュー
           </button>
@@ -370,7 +425,6 @@ function App() {
       </header>
 
       <main style={styles.main}>
-        {/* 通知許可バナー */}
         {notificationPermission === 'default' && (
           <div style={styles.notificationBanner}>
             <p style={styles.notificationText}>🔔 通知を許可すると、タイマー終了時にお知らせします</p>
@@ -383,7 +437,11 @@ function App() {
         <div style={styles.stats}>
           <div style={styles.statItem}>
             <span style={styles.statValue}>{completedCycles}</span>
-            <span style={styles.statLabel}>サイクル完了</span>
+            <span style={styles.statLabel}>今日のサイクル</span>
+          </div>
+          <div style={styles.statItem}>
+            <span style={styles.statValue}>{totalCyclesAllTime}</span>
+            <span style={styles.statLabel}>累計サイクル</span>
           </div>
         </div>
 
@@ -395,7 +453,6 @@ function App() {
             {formatTime(timeLeft)}
           </div>
           
-          {/* 運動準備画面 */}
           {phase === 'exercise-ready' && (
             <div style={styles.exerciseInfo}>
               <div style={styles.exerciseIconContainer}>
@@ -415,7 +472,6 @@ function App() {
             </div>
           )}
 
-          {/* 運動中 */}
           {phase === 'exercise' && (
             <div style={styles.exerciseInfo}>
               <div style={styles.exerciseIconContainer}>
@@ -430,7 +486,6 @@ function App() {
             </div>
           )}
 
-          {/* インターバル */}
           {phase === 'interval' && (
             <div style={styles.restInfo}>
               <p style={styles.restMessage}>セット間休憩</p>
@@ -438,7 +493,6 @@ function App() {
             </div>
           )}
 
-          {/* 休憩中 */}
           {phase === 'rest' && (
             <div style={styles.restInfo}>
               <p style={styles.restMessage}>お疲れさまでした！</p>
@@ -446,7 +500,6 @@ function App() {
             </div>
           )}
 
-          {/* スタンバイ */}
           {phase === 'ready' && (
             <div style={styles.readyInfo}>
               <div style={styles.selectedExercisePreview}>
@@ -502,7 +555,61 @@ function App() {
             </button>
           )}
         </div>
+
+        {/* 今日の運動サマリー */}
+        {todayHistory.length > 0 && (
+          <div style={styles.todaySummary}>
+            <h3 style={styles.todaySummaryTitle}>📅 今日の運動</h3>
+            {todayHistory.slice(0, 3).map((item, index) => (
+              <div key={index} style={styles.todaySummaryItem}>
+                <span>{item.exerciseName}</span>
+                <span style={styles.todaySummaryMeta}>{item.reps}回 × {item.sets}セット</span>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
+
+      {/* 履歴モーダル */}
+      {showHistory && (
+        <div style={styles.modalOverlay} onClick={() => setShowHistory(false)}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>📊 運動履歴</h2>
+              <button onClick={() => setShowHistory(false)} style={styles.closeButton}>✕</button>
+            </div>
+            <div style={styles.modalContent}>
+              <div style={styles.historyStats}>
+                <div style={styles.historyStatItem}>
+                  <span style={styles.historyStatValue}>{totalCyclesAllTime}</span>
+                  <span style={styles.historyStatLabel}>累計サイクル</span>
+                </div>
+                <div style={styles.historyStatItem}>
+                  <span style={styles.historyStatValue}>{exerciseHistory.length}</span>
+                  <span style={styles.historyStatLabel}>運動回数</span>
+                </div>
+              </div>
+              
+              <h3 style={styles.historyListTitle}>最近の運動</h3>
+              {exerciseHistory.length === 0 ? (
+                <p style={styles.noHistory}>まだ運動履歴がありません</p>
+              ) : (
+                exerciseHistory.map((item, index) => (
+                  <div key={index} style={styles.historyItem}>
+                    <div style={styles.historyItemMain}>
+                      <span style={styles.historyItemName}>{item.exerciseName}</span>
+                      <span style={styles.historyItemDate}>{item.date}</span>
+                    </div>
+                    <div style={styles.historyItemDetail}>
+                      {item.reps}回 × {item.sets}セット
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 運動メニューモーダル */}
       {showMenu && (
@@ -649,9 +756,11 @@ const styles = {
     alignItems: 'center',
     padding: '16px 24px',
     borderBottom: '1px solid rgba(255,255,255,0.1)',
+    flexWrap: 'wrap',
+    gap: '12px',
   },
   logo: {
-    fontSize: '48px',
+    fontSize: '36px',
     fontWeight: '700',
     margin: 0,
     color: '#F1F5F9',
@@ -659,6 +768,17 @@ const styles = {
   headerButtons: {
     display: 'flex',
     gap: '8px',
+    flexWrap: 'wrap',
+  },
+  historyButton: {
+    background: 'rgba(139, 92, 246, 0.2)',
+    border: '1px solid rgba(139, 92, 246, 0.5)',
+    color: '#A78BFA',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
   },
   menuButton: {
     background: 'rgba(255,255,255,0.1)',
@@ -710,6 +830,7 @@ const styles = {
   stats: {
     display: 'flex',
     justifyContent: 'center',
+    gap: '48px',
     marginBottom: '32px',
   },
   statItem: {
@@ -835,6 +956,7 @@ const styles = {
     justifyContent: 'center',
     gap: '12px',
     flexWrap: 'wrap',
+    marginBottom: '24px',
   },
   primaryButton: {
     color: '#fff',
@@ -872,6 +994,28 @@ const styles = {
     borderRadius: '12px',
     cursor: 'pointer',
     fontSize: '16px',
+  },
+  todaySummary: {
+    background: 'rgba(255,255,255,0.05)',
+    borderRadius: '16px',
+    padding: '16px',
+  },
+  todaySummaryTitle: {
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#94A3B8',
+    margin: '0 0 12px 0',
+  },
+  todaySummaryItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
+  },
+  todaySummaryMeta: {
+    fontSize: '13px',
+    color: '#64748B',
   },
   modalOverlay: {
     position: 'fixed',
@@ -919,6 +1063,63 @@ const styles = {
   modalContent: {
     padding: '20px 24px',
     overflowY: 'auto',
+  },
+  historyStats: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '48px',
+    marginBottom: '24px',
+    padding: '20px',
+    background: 'rgba(255,255,255,0.05)',
+    borderRadius: '12px',
+  },
+  historyStatItem: {
+    textAlign: 'center',
+  },
+  historyStatValue: {
+    display: 'block',
+    fontSize: '32px',
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  historyStatLabel: {
+    fontSize: '13px',
+    color: '#94A3B8',
+  },
+  historyListTitle: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#F1F5F9',
+    marginBottom: '12px',
+  },
+  noHistory: {
+    textAlign: 'center',
+    color: '#64748B',
+    padding: '24px',
+  },
+  historyItem: {
+    padding: '12px',
+    background: 'rgba(255,255,255,0.05)',
+    borderRadius: '8px',
+    marginBottom: '8px',
+  },
+  historyItemMain: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '4px',
+  },
+  historyItemName: {
+    fontWeight: '600',
+    color: '#F1F5F9',
+  },
+  historyItemDate: {
+    fontSize: '13px',
+    color: '#64748B',
+  },
+  historyItemDetail: {
+    fontSize: '14px',
+    color: '#94A3B8',
   },
   menuInstruction: {
     fontSize: '14px',
