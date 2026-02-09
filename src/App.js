@@ -373,6 +373,7 @@ function App() {
         }
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning, phase]);
 
   // タイマー終了時の処理
