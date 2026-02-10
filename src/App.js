@@ -1,68 +1,68 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, auth, googleProvider } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit, Timestamp, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, Timestamp, where } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
 // 運動メニュー
 const exerciseMenu = [
-  { 
+  {
     id: 'squat-basic',
     category: 'スクワット',
     name: 'ノーマルスクワット',
     description: '足を肩幅に開き、膝がつま先より前に出ないように腰を落とします',
     defaultReps: 10,
     defaultSets: 2,
-    tip: '💡 太もも・お尻を効率よく鍛える王道種目！',
+    tip: '太もも・お尻を効率よく鍛える王道種目',
     icon: 'squat-basic'
   },
-  { 
+  {
     id: 'squat-sumo',
     category: 'スクワット',
     name: 'ワイドスクワット',
     description: '足を大きく開き、つま先を外側に向けて腰を落とします',
     defaultReps: 10,
     defaultSets: 2,
-    tip: '💡 内ももを重点的に鍛えられる！',
+    tip: '内ももを重点的に鍛えられる',
     icon: 'squat-wide'
   },
-  { 
+  {
     id: 'squat-pulse',
     category: 'スクワット',
     name: 'パルススクワット',
     description: '腰を落とした状態で小刻みに上下運動を繰り返します',
     defaultReps: 15,
     defaultSets: 2,
-    tip: '💡 常に負荷がかかり続けて効果UP！',
+    tip: '常に負荷がかかり続けて効果UP',
     icon: 'squat-pulse'
   },
-  { 
+  {
     id: 'pushup-desk',
     category: '腕立て',
     name: 'デスク腕立て伏せ',
     description: 'デスクに手をついて斜めの状態で腕立て伏せ',
     defaultReps: 10,
     defaultSets: 2,
-    tip: '💡 初心者OK！デスクワークの合間に最適',
+    tip: '初心者OK デスクワークの合間に最適',
     icon: 'pushup-desk'
   },
-  { 
+  {
     id: 'pushup-normal',
     category: '腕立て',
     name: 'ノーマル腕立て伏せ',
     description: '床に手をついて体をまっすぐに保ち上下運動',
     defaultReps: 10,
     defaultSets: 2,
-    tip: '💡 胸・腕・体幹を同時に鍛える万能種目！',
+    tip: '胸・腕・体幹を同時に鍛える万能種目',
     icon: 'pushup-normal'
   },
-  { 
+  {
     id: 'situp',
     category: '腹筋',
     name: 'クランチ',
     description: '仰向けで膝を曲げ、肩甲骨が浮く程度に上体を起こします',
     defaultReps: 15,
     defaultSets: 2,
-    tip: '💡 腰への負担が少なく、腹筋に集中できる！',
+    tip: '腰への負担が少なく、腹筋に集中できる',
     icon: 'situp'
   },
   {
@@ -74,7 +74,7 @@ const exerciseMenu = [
     defaultSets: 1,
     defaultDuration: 300, // 5分
     isMeditation: true,
-    tip: '💡 集中力回復＆ストレス軽減に効果的！',
+    tip: '集中力回復・ストレス軽減に効果的',
     icon: 'meditation'
   },
 ];
@@ -185,6 +185,8 @@ function App() {
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [exerciseHistory, setExerciseHistory] = useState([]);
   const [totalWorkSecondsAllTime, setTotalWorkSecondsAllTime] = useState(0);
+  const [totalTrainingCount, setTotalTrainingCount] = useState(0);
+  const [showGuide, setShowGuide] = useState(false);
   
   // 設定
   const [workMinutes, setWorkMinutes] = useState(25);
@@ -234,26 +236,35 @@ function App() {
     if (!user) {
       setExerciseHistory([]);
       setTotalWorkSecondsAllTime(0);
+      setTotalTrainingCount(0);
       return;
     }
 
     try {
-      const q = query(
+      // 全履歴を取得（累計計算用）
+      const allQuery = query(
         collection(db, 'exerciseHistory'),
         where('userId', '==', user.uid),
-        orderBy('timestamp', 'desc'),
-        limit(50)
+        orderBy('timestamp', 'desc')
       );
-      const querySnapshot = await getDocs(q);
-      const history = [];
-      querySnapshot.forEach((doc) => {
-        history.push({ id: doc.id, ...doc.data() });
+      const allSnapshot = await getDocs(allQuery);
+      const allHistory = [];
+      allSnapshot.forEach((doc) => {
+        allHistory.push({ id: doc.id, ...doc.data() });
       });
-      setExerciseHistory(history);
 
-      // 累計作業時間を計算
-      const totalWorkSecs = history.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
+      // 表示用は最新50件
+      setExerciseHistory(allHistory.slice(0, 50));
+
+      // 累計作業時間と累計トレーニング回数を計算
+      const totalWorkSecs = allHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
       setTotalWorkSecondsAllTime(totalWorkSecs);
+      setTotalTrainingCount(allHistory.length);
+
+      // 初回ユーザー判定（履歴が0件ならガイドを表示）
+      if (allHistory.length === 0) {
+        setShowGuide(true);
+      }
     } catch (error) {
       console.error('履歴の取得に失敗:', error);
     }
@@ -380,36 +391,36 @@ function App() {
   useEffect(() => {
     if (isRunning && timeLeft === 0) {
       if (phase === 'work') {
-        sendNotification('🏋️ 運動の時間です！', 'トレーニングメニューを選択してください');
+        sendNotification('運動の時間です', 'トレーニングメニューを選択してください');
         setPhase('select-exercise');
         setIsRunning(false);
       } else if (phase === 'exercise') {
         if (selectedExercise.isMeditation) {
           // 瞑想完了 → 直接休憩へ
           saveExerciseHistory(selectedExercise, meditationMinutes, 1, workSessionSeconds);
-          sendNotification('✅ 瞑想完了！', `${restMinutes}分間休憩しましょう`);
+          sendNotification('瞑想完了', `${restMinutes}分間休憩しましょう`);
           setPhase('rest');
           setTimeLeft(restMinutes * 60);
           setWorkSessionSeconds(0);
         } else if (currentSet < sets) {
-          sendNotification('⏸️ インターバル', `${intervalSeconds}秒休憩`);
+          sendNotification('インターバル', `${intervalSeconds}秒休憩`);
           setPhase('interval');
           setTimeLeft(intervalSeconds);
         } else {
           // 全セット完了 → 履歴保存（作業時間も含める）
           saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
-          sendNotification('✅ 運動完了！', `${restMinutes}分間休憩しましょう`);
+          sendNotification('運動完了', `${restMinutes}分間休憩しましょう`);
           setPhase('rest');
           setTimeLeft(restMinutes * 60);
           setWorkSessionSeconds(0);
         }
       } else if (phase === 'interval') {
-        sendNotification('💪 次のセット！', `セット ${currentSet + 1}/${sets} を始めましょう`);
+        sendNotification('次のセット', `セット ${currentSet + 1}/${sets} を始めましょう`);
         setCurrentSet(s => s + 1);
         setPhase('exercise-ready');
         setIsRunning(false);
       } else if (phase === 'rest') {
-        sendNotification('🔔 休憩終了', '作業を再開しましょう');
+        sendNotification('休憩終了', '作業を再開しましょう');
         setPhase('work');
         setTimeLeft(workMinutes * 60);
       }
@@ -592,7 +603,7 @@ function App() {
             履歴
           </button>
           <button onClick={() => setShowSettings(true)} style={styles.settingsButton}>
-            ⚙️
+            設定
           </button>
           <button onClick={handleLogout} style={styles.logoutButton}>
             ログアウト
@@ -603,7 +614,7 @@ function App() {
       <main style={styles.main}>
         {notificationPermission === 'default' && !isIOS && (
           <div style={styles.notificationBanner}>
-            <p style={styles.notificationText}>🔔 通知を許可すると、タイマー終了時にお知らせします</p>
+            <p style={styles.notificationText}>通知を許可すると、タイマー終了時にお知らせします</p>
             <button onClick={requestNotificationPermission} style={styles.notificationButton}>
               通知を許可
             </button>
@@ -611,7 +622,7 @@ function App() {
         )}
         {isIOS && notificationPermission !== 'granted' && (
           <div style={styles.notificationBanner}>
-            <p style={styles.notificationText}>📱 iOSでは通知音でお知らせします</p>
+            <p style={styles.notificationText}>iOSでは通知音でお知らせします</p>
           </div>
         )}
 
@@ -688,8 +699,8 @@ function App() {
 
           {phase === 'rest' && (
             <div style={styles.restInfo}>
-              <p style={styles.restMessage}>お疲れさまでした！</p>
-              <p style={styles.restTip}>💧 水分補給をしましょう</p>
+              <p style={styles.restMessage}>お疲れさまでした</p>
+              <p style={styles.restTip}>水分補給をしましょう</p>
             </div>
           )}
 
@@ -772,7 +783,7 @@ function App() {
                 </div>
               )}
               <button onClick={confirmExerciseSelection} style={styles.confirmExerciseButton}>
-                ✓ この運動で開始
+                この運動で開始
               </button>
             </div>
           )}
@@ -825,7 +836,7 @@ function App() {
         {/* 今日の運動サマリー */}
         {todayHistory.length > 0 && (
           <div style={styles.todaySummary}>
-            <h3 style={styles.todaySummaryTitle}>📅 今日の運動</h3>
+            <h3 style={styles.todaySummaryTitle}>今日の運動</h3>
             {todayHistory.slice(0, 3).map((item, index) => (
               <div key={index} style={styles.todaySummaryItem}>
                 <span>{item.exerciseName}</span>
@@ -853,8 +864,8 @@ function App() {
                   <span style={styles.historyStatLabel}>累計作業時間</span>
                 </div>
                 <div style={styles.historyStatItem}>
-                  <span style={styles.historyStatValue}>{exerciseHistory.length}</span>
-                  <span style={styles.historyStatLabel}>累計トレーニング</span>
+                  <span style={styles.historyStatValue}>{totalTrainingCount}回</span>
+                  <span style={styles.historyStatLabel}>累計トレーニング回数</span>
                 </div>
               </div>
               
@@ -889,7 +900,7 @@ function App() {
             </div>
             <div style={styles.modalContent}>
               <div style={styles.settingSection}>
-                <h3 style={styles.settingSectionTitle}>⏱️ 時間設定</h3>
+                <h3 style={styles.settingSectionTitle}>作業設定</h3>
                 <div style={styles.settingItem}>
                   <label style={styles.settingLabel}>作業時間（分）</label>
                   <input
@@ -901,6 +912,10 @@ function App() {
                     max="60"
                   />
                 </div>
+              </div>
+
+              <div style={styles.settingSection}>
+                <h3 style={styles.settingSectionTitle}>運動設定</h3>
                 <div style={styles.settingItem}>
                   <label style={styles.settingLabel}>運動時間（秒/セット）</label>
                   <input
@@ -910,6 +925,28 @@ function App() {
                     style={styles.settingInput}
                     min="10"
                     max="300"
+                  />
+                </div>
+                <div style={styles.settingItem}>
+                  <label style={styles.settingLabel}>回数（{selectedExercise.name}）</label>
+                  <input
+                    type="number"
+                    value={reps}
+                    onChange={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={styles.settingInput}
+                    min="1"
+                    max="100"
+                  />
+                </div>
+                <div style={styles.settingItem}>
+                  <label style={styles.settingLabel}>セット数</label>
+                  <input
+                    type="number"
+                    value={sets}
+                    onChange={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={styles.settingInput}
+                    min="1"
+                    max="10"
                   />
                 </div>
                 <div style={styles.settingItem}>
@@ -935,32 +972,47 @@ function App() {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div style={styles.settingSection}>
-                <h3 style={styles.settingSectionTitle}>💪 運動設定</h3>
-                <div style={styles.settingItem}>
-                  <label style={styles.settingLabel}>回数（{selectedExercise.name}）</label>
-                  <input
-                    type="number"
-                    value={reps}
-                    onChange={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
-                    style={styles.settingInput}
-                    min="1"
-                    max="100"
-                  />
+      {/* 初回ログインガイドモーダル */}
+      {showGuide && (
+        <div style={styles.modalOverlay} onClick={() => setShowGuide(false)}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>FIT N' FOCUSへようこそ</h2>
+              <button onClick={() => setShowGuide(false)} style={styles.closeButton}>×</button>
+            </div>
+            <div style={styles.modalContent}>
+              <div style={styles.guideSection}>
+                <h3 style={styles.guideSectionTitle}>アプリの使い方</h3>
+                <div style={styles.guideStep}>
+                  <div style={styles.guideStepNumber}>1</div>
+                  <div style={styles.guideStepContent}>
+                    <p style={styles.guideStepTitle}>作業タイマーをスタート</p>
+                    <p style={styles.guideStepDesc}>スタートボタンを押して集中タイムを開始します（デフォルト25分）</p>
+                  </div>
                 </div>
-                <div style={styles.settingItem}>
-                  <label style={styles.settingLabel}>セット数</label>
-                  <input
-                    type="number"
-                    value={sets}
-                    onChange={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
-                    style={styles.settingInput}
-                    min="1"
-                    max="10"
-                  />
+                <div style={styles.guideStep}>
+                  <div style={styles.guideStepNumber}>2</div>
+                  <div style={styles.guideStepContent}>
+                    <p style={styles.guideStepTitle}>トレーニングを選択</p>
+                    <p style={styles.guideStepDesc}>作業タイマー終了後、表示されるメニューからトレーニングを選びます</p>
+                  </div>
+                </div>
+                <div style={styles.guideStep}>
+                  <div style={styles.guideStepNumber}>3</div>
+                  <div style={styles.guideStepContent}>
+                    <p style={styles.guideStepTitle}>運動して休憩</p>
+                    <p style={styles.guideStepDesc}>運動後は休憩タイムで回復。その後また作業に戻ります</p>
+                  </div>
                 </div>
               </div>
+              <button onClick={() => setShowGuide(false)} style={styles.guideCloseButton}>
+                始める
+              </button>
             </div>
           </div>
         </div>
@@ -1088,10 +1140,11 @@ const styles = {
     background: 'rgba(255,255,255,0.1)',
     border: '1px solid rgba(255,255,255,0.2)',
     color: '#F1F5F9',
-    padding: '8px 12px',
+    padding: '8px 16px',
     borderRadius: '8px',
     cursor: 'pointer',
-    fontSize: '16px',
+    fontSize: '14px',
+    fontWeight: '500',
   },
   main: {
     maxWidth: '480px',
@@ -1620,6 +1673,61 @@ const styles = {
     fontWeight: '700',
     color: '#F1F5F9',
     minWidth: '40px',
+  },
+  guideSection: {
+    marginBottom: '24px',
+  },
+  guideSectionTitle: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#F1F5F9',
+    marginBottom: '20px',
+    textAlign: 'center',
+  },
+  guideStep: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    marginBottom: '20px',
+  },
+  guideStepNumber: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    background: '#3B82F6',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: '700',
+    fontSize: '16px',
+    flexShrink: 0,
+  },
+  guideStepContent: {
+    flex: 1,
+  },
+  guideStepTitle: {
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#F1F5F9',
+    margin: '0 0 4px 0',
+  },
+  guideStepDesc: {
+    fontSize: '14px',
+    color: '#94A3B8',
+    margin: 0,
+    lineHeight: '1.5',
+  },
+  guideCloseButton: {
+    width: '100%',
+    background: '#3B82F6',
+    color: '#fff',
+    border: 'none',
+    padding: '16px',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '600',
   },
 };
 
