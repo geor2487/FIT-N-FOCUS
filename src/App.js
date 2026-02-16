@@ -558,23 +558,30 @@ function App() {
     }
   };
 
-  // 今日の運動をフィルタ
-  const todayHistory = exerciseHistory.filter(
-    item => item.date === new Date().toLocaleDateString('ja-JP')
-  );
+  // 今日の運動をフィルタ（timestampベースで確実に比較）
+  const todayHistory = exerciseHistory.filter(item => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const itemDate = item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : item.timestamp);
+    return itemDate >= todayStart;
+  });
 
   // 今日の作業時間（履歴から計算 + 現在のセッション）
   const todayWorkSecondsFromHistory = todayHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
   const totalTodayWorkSeconds = todayWorkSecondsFromHistory + workSessionSeconds;
 
-  // 時間フォーマット（分と時間）
+  // 時間フォーマット（秒・分・時間）
   const formatWorkTime = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
     if (hours > 0) {
       return `${hours}時間${mins}分`;
     }
-    return `${mins}分`;
+    if (mins > 0) {
+      return `${mins}分${secs > 0 ? `${secs}秒` : ''}`;
+    }
+    return `${secs}秒`;
   };
 
   // 認証ロード中
@@ -941,7 +948,7 @@ function App() {
       {/* 設定モーダル */}
       {showSettings && (
         <div style={styles.modalOverlay} onClick={() => setShowSettings(false)}>
-          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Enter') setShowSettings(false); }}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>設定</h2>
               <button onClick={() => setShowSettings(false)} style={styles.closeButton}>✕</button>
@@ -977,32 +984,6 @@ function App() {
                     style={styles.settingInput}
                     min="10"
                     max="300"
-                  />
-                </div>
-                <div style={styles.settingItem}>
-                  <label style={styles.settingLabel}>回数（{selectedExercise.name}）</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={reps}
-                    onChange={e => setReps(e.target.value === '' ? '' : parseInt(e.target.value))}
-                    onBlur={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
-                    style={styles.settingInput}
-                    min="1"
-                    max="100"
-                  />
-                </div>
-                <div style={styles.settingItem}>
-                  <label style={styles.settingLabel}>セット数</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={sets}
-                    onChange={e => setSets(e.target.value === '' ? '' : parseInt(e.target.value))}
-                    onBlur={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
-                    style={styles.settingInput}
-                    min="1"
-                    max="10"
                   />
                 </div>
                 <div style={styles.settingItem}>
