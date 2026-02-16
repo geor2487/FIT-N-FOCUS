@@ -436,6 +436,13 @@ function App() {
     }
   }, [isRunning, timeLeft, phase, currentSet, sets, workMinutes, exerciseSeconds, intervalSeconds, restMinutes, selectedExercise, sendNotification, saveExerciseHistory, reps, workSessionSeconds, meditationMinutes]);
 
+  // readyフェーズ中にworkMinutesが変わったらタイマーも即更新
+  useEffect(() => {
+    if (phase === 'ready' && workMinutes > 0) {
+      setTimeLeft(workMinutes * 60);
+    }
+  }, [workMinutes, phase]);
+
   const startTimer = () => {
     if (phase === 'ready') {
       setPhase('work');
@@ -763,7 +770,8 @@ function App() {
                         type="number"
                         inputMode="numeric"
                         value={meditationMinutes}
-                        onChange={e => setMeditationMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={e => setMeditationMinutes(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        onBlur={e => setMeditationMinutes(Math.max(1, parseInt(e.target.value) || 1))}
                         style={styles.exerciseInputValueInput}
                         min="1"
                       />
@@ -787,7 +795,8 @@ function App() {
                         type="number"
                         inputMode="numeric"
                         value={reps}
-                        onChange={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={e => setReps(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        onBlur={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
                         style={styles.exerciseInputValueInput}
                         min="1"
                       />
@@ -808,7 +817,8 @@ function App() {
                         type="number"
                         inputMode="numeric"
                         value={sets}
-                        onChange={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={e => setSets(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        onBlur={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
                         style={styles.exerciseInputValueInput}
                         min="1"
                       />
@@ -945,7 +955,8 @@ function App() {
                     type="number"
                     inputMode="numeric"
                     value={workMinutes}
-                    onChange={e => setWorkMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={e => setWorkMinutes(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    onBlur={e => setWorkMinutes(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
                     min="1"
                     max="60"
@@ -961,7 +972,8 @@ function App() {
                     type="number"
                     inputMode="numeric"
                     value={exerciseSeconds}
-                    onChange={e => setExerciseSeconds(Math.max(10, parseInt(e.target.value) || 10))}
+                    onChange={e => setExerciseSeconds(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    onBlur={e => setExerciseSeconds(Math.max(10, parseInt(e.target.value) || 10))}
                     style={styles.settingInput}
                     min="10"
                     max="300"
@@ -973,7 +985,8 @@ function App() {
                     type="number"
                     inputMode="numeric"
                     value={reps}
-                    onChange={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={e => setReps(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    onBlur={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
                     min="1"
                     max="100"
@@ -985,7 +998,8 @@ function App() {
                     type="number"
                     inputMode="numeric"
                     value={sets}
-                    onChange={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={e => setSets(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    onBlur={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
                     min="1"
                     max="10"
@@ -997,7 +1011,8 @@ function App() {
                     type="number"
                     inputMode="numeric"
                     value={intervalSeconds}
-                    onChange={e => setIntervalSeconds(Math.max(5, parseInt(e.target.value) || 5))}
+                    onChange={e => setIntervalSeconds(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    onBlur={e => setIntervalSeconds(Math.max(5, parseInt(e.target.value) || 5))}
                     style={styles.settingInput}
                     min="5"
                     max="60"
@@ -1009,7 +1024,8 @@ function App() {
                     type="number"
                     inputMode="numeric"
                     value={restMinutes}
-                    onChange={e => setRestMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={e => setRestMinutes(e.target.value === '' ? '' : parseInt(e.target.value) || '')}
+                    onBlur={e => setRestMinutes(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
                     min="1"
                     max="30"
