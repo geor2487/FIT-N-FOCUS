@@ -193,9 +193,18 @@ function App() {
   const [exerciseSeconds, setExerciseSeconds] = useState(30);
   const [intervalSeconds, setIntervalSeconds] = useState(10);
   const [restMinutes, setRestMinutes] = useState(5);
-  const [reps, setReps] = useState(exerciseMenu[0].defaultReps);
-  const [sets, setSets] = useState(exerciseMenu[0].defaultSets);
-  const [meditationMinutes, setMeditationMinutes] = useState(5);
+  const [reps, setReps] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem(`exercise-settings-${exerciseMenu[0].id}`) || 'null');
+    return saved?.reps || exerciseMenu[0].defaultReps;
+  });
+  const [sets, setSets] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem(`exercise-settings-${exerciseMenu[0].id}`) || 'null');
+    return saved?.sets || exerciseMenu[0].defaultSets;
+  });
+  const [meditationMinutes, setMeditationMinutes] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem(`exercise-settings-meditation`) || 'null');
+    return saved?.meditationMinutes || 5;
+  });
   
   const timerRef = useRef(null);
   const lastTickRef = useRef(Date.now());
@@ -417,8 +426,8 @@ function App() {
       } else if (phase === 'interval') {
         sendNotification('次のセット', `セット ${currentSet + 1}/${sets} を始めましょう`);
         setCurrentSet(s => s + 1);
-        setPhase('exercise-ready');
-        setIsRunning(false);
+        setPhase('exercise');
+        setTimeLeft(exerciseSeconds);
       } else if (phase === 'rest') {
         sendNotification('休憩終了', '作業を再開しましょう');
         setPhase('work');
@@ -437,6 +446,11 @@ function App() {
   };
 
   const confirmExerciseSelection = () => {
+    if (selectedExercise.isMeditation) {
+      localStorage.setItem(`exercise-settings-meditation`, JSON.stringify({ meditationMinutes }));
+    } else {
+      localStorage.setItem(`exercise-settings-${selectedExercise.id}`, JSON.stringify({ reps, sets }));
+    }
     setPhase('exercise-ready');
     setCurrentSet(1);
   };
@@ -480,8 +494,8 @@ function App() {
       }
     } else if (phase === 'interval') {
       setCurrentSet(s => s + 1);
-      setPhase('exercise-ready');
-      setIsRunning(false);
+      setPhase('exercise');
+      setTimeLeft(exerciseSeconds);
     } else if (phase === 'rest') {
       setPhase('work');
       setTimeLeft(workMinutes * 60);
@@ -544,7 +558,7 @@ function App() {
 
   // 今日の作業時間（履歴から計算 + 現在のセッション）
   const todayWorkSecondsFromHistory = todayHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
-  const totalTodayWorkSeconds = todayWorkSecondsFromHistory + (phase === 'work' ? workSessionSeconds : 0);
+  const totalTodayWorkSeconds = todayWorkSecondsFromHistory + workSessionSeconds;
 
   // 時間フォーマット（分と時間）
   const formatWorkTime = (seconds) => {
@@ -717,10 +731,13 @@ function App() {
                     }}
                     onClick={() => {
                       setSelectedExercise(exercise);
-                      setReps(exercise.defaultReps);
-                      setSets(exercise.defaultSets);
                       if (exercise.isMeditation) {
-                        setMeditationMinutes(Math.floor(exercise.defaultDuration / 60));
+                        const saved = JSON.parse(localStorage.getItem(`exercise-settings-meditation`) || 'null');
+                        setMeditationMinutes(saved?.meditationMinutes || Math.floor(exercise.defaultDuration / 60));
+                      } else {
+                        const saved = JSON.parse(localStorage.getItem(`exercise-settings-${exercise.id}`) || 'null');
+                        setReps(saved?.reps || exercise.defaultReps);
+                        setSets(saved?.sets || exercise.defaultSets);
                       }
                     }}
                   >
@@ -742,7 +759,14 @@ function App() {
                         style={styles.exerciseInputButton}
                         onClick={() => setMeditationMinutes(m => Math.max(1, m - 1))}
                       >−</button>
-                      <span style={styles.exerciseInputValue}>{meditationMinutes}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={meditationMinutes}
+                        onChange={e => setMeditationMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={styles.exerciseInputValueInput}
+                        min="1"
+                      />
                       <button
                         style={styles.exerciseInputButton}
                         onClick={() => setMeditationMinutes(m => m + 1)}
@@ -759,7 +783,14 @@ function App() {
                         style={styles.exerciseInputButton}
                         onClick={() => setReps(r => Math.max(1, r - 1))}
                       >−</button>
-                      <span style={styles.exerciseInputValue}>{reps}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={reps}
+                        onChange={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={styles.exerciseInputValueInput}
+                        min="1"
+                      />
                       <button
                         style={styles.exerciseInputButton}
                         onClick={() => setReps(r => r + 1)}
@@ -773,7 +804,14 @@ function App() {
                         style={styles.exerciseInputButton}
                         onClick={() => setSets(s => Math.max(1, s - 1))}
                       >−</button>
-                      <span style={styles.exerciseInputValue}>{sets}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={sets}
+                        onChange={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={styles.exerciseInputValueInput}
+                        min="1"
+                      />
                       <button
                         style={styles.exerciseInputButton}
                         onClick={() => setSets(s => s + 1)}
@@ -905,6 +943,7 @@ function App() {
                   <label style={styles.settingLabel}>作業時間（分）</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={workMinutes}
                     onChange={e => setWorkMinutes(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
@@ -920,6 +959,7 @@ function App() {
                   <label style={styles.settingLabel}>運動時間（秒/セット）</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={exerciseSeconds}
                     onChange={e => setExerciseSeconds(Math.max(10, parseInt(e.target.value) || 10))}
                     style={styles.settingInput}
@@ -931,6 +971,7 @@ function App() {
                   <label style={styles.settingLabel}>回数（{selectedExercise.name}）</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={reps}
                     onChange={e => setReps(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
@@ -942,6 +983,7 @@ function App() {
                   <label style={styles.settingLabel}>セット数</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={sets}
                     onChange={e => setSets(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
@@ -953,6 +995,7 @@ function App() {
                   <label style={styles.settingLabel}>インターバル（秒）</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={intervalSeconds}
                     onChange={e => setIntervalSeconds(Math.max(5, parseInt(e.target.value) || 5))}
                     style={styles.settingInput}
@@ -964,6 +1007,7 @@ function App() {
                   <label style={styles.settingLabel}>休憩時間（分）</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={restMinutes}
                     onChange={e => setRestMinutes(Math.max(1, parseInt(e.target.value) || 1))}
                     style={styles.settingInput}
@@ -1673,6 +1717,19 @@ const styles = {
     fontWeight: '700',
     color: '#F1F5F9',
     minWidth: '40px',
+  },
+  exerciseInputValueInput: {
+    width: '60px',
+    fontSize: '24px',
+    fontWeight: '700',
+    color: '#F1F5F9',
+    textAlign: 'center',
+    background: 'rgba(255,255,255,0.1)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    borderRadius: '8px',
+    padding: '4px',
+    MozAppearance: 'textfield',
+    WebkitAppearance: 'none',
   },
   guideSection: {
     marginBottom: '24px',
