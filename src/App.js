@@ -123,7 +123,6 @@ function App() {
   const [totalTrainingCount, setTotalTrainingCount] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
   const [todayWorkSeconds, setTodayWorkSeconds] = useState(0);
-  const [todayTrainingCount, setTodayTrainingCount] = useState(0);
   const [todayExercises, setTodayExercises] = useState([]);
   
   // 設定
@@ -175,7 +174,6 @@ function App() {
       setTotalWorkSecondsAllTime(0);
       setTotalTrainingCount(0);
       setTodayWorkSeconds(0);
-      setTodayTrainingCount(0);
       setTodayExercises([]);
     } catch (error) {
       console.error('ログアウトエラー:', error);
@@ -189,7 +187,6 @@ function App() {
       setTotalWorkSecondsAllTime(0);
       setTotalTrainingCount(0);
       setTodayWorkSeconds(0);
-      setTodayTrainingCount(0);
       setTodayExercises([]);
       return;
     }
@@ -229,8 +226,7 @@ function App() {
         return itemDate >= todayStart;
       });
       setTodayWorkSeconds(todayItems.reduce((sum, item) => sum + (item.workSeconds || 0), 0));
-      setTodayTrainingCount(todayItems.length);
-      setTodayExercises(todayItems.slice(0, 3));
+      setTodayExercises(todayItems);
 
       // 初回ユーザー判定（履歴が0件ならガイドを表示）
       if (allHistory.length === 0) {
@@ -624,10 +620,6 @@ function App() {
             <span style={styles.statValue}>{formatWorkTime(totalTodayWorkSeconds)}</span>
             <span style={styles.statLabel}>今日の作業時間</span>
           </div>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>{todayTrainingCount}回</span>
-            <span style={styles.statLabel}>今日のトレーニング回数</span>
-          </div>
         </div>
 
         <div style={{...styles.timerContainer, borderColor: getPhaseColor()}}>
@@ -867,16 +859,23 @@ function App() {
           )}
         </div>
 
-        {/* 今日の運動サマリー */}
+        {/* 今日の種目別サマリー */}
         {todayExercises.length > 0 && (
           <div style={styles.todaySummary}>
-            <h3 style={styles.todaySummaryTitle}>今日の運動</h3>
-            {todayExercises.map((item, index) => (
+            <h3 style={styles.todaySummaryTitle}>今日のトレーニング</h3>
+            {Object.values(
+              todayExercises.reduce((acc, item) => {
+                const key = item.exerciseId || item.exerciseName;
+                if (!acc[key]) {
+                  acc[key] = { name: item.exerciseName, count: 0, isMeditation: item.isMeditation };
+                }
+                acc[key].count += 1;
+                return acc;
+              }, {})
+            ).map((summary, index) => (
               <div key={index} style={styles.todaySummaryItem}>
-                <span>{item.exerciseName}</span>
-                <span style={styles.todaySummaryMeta}>
-                  {item.isMeditation ? `${item.reps}分間` : `${item.reps}回 × ${item.sets}セット`}
-                </span>
+                <span>{summary.name}</span>
+                <span style={styles.todaySummaryMeta}>{summary.count}回</span>
               </div>
             ))}
           </div>
