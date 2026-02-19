@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, auth, googleProvider } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, Timestamp, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
 // 運動メニュー
@@ -187,6 +187,9 @@ function App() {
   const [totalWorkSecondsAllTime, setTotalWorkSecondsAllTime] = useState(0);
   const [totalTrainingCount, setTotalTrainingCount] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
+  const [todayWorkSeconds, setTodayWorkSeconds] = useState(0);
+  const [todayTrainingCount, setTodayTrainingCount] = useState(0);
+  const [todayExercises, setTodayExercises] = useState([]);
   
   // 設定
   const [workMinutes, setWorkMinutes] = useState(25);
@@ -235,6 +238,10 @@ function App() {
       await signOut(auth);
       setExerciseHistory([]);
       setTotalWorkSecondsAllTime(0);
+      setTotalTrainingCount(0);
+      setTodayWorkSeconds(0);
+      setTodayTrainingCount(0);
+      setTodayExercises([]);
     } catch (error) {
       console.error('ログアウトエラー:', error);
     }
@@ -246,20 +253,29 @@ function App() {
       setExerciseHistory([]);
       setTotalWorkSecondsAllTime(0);
       setTotalTrainingCount(0);
+      setTodayWorkSeconds(0);
+      setTodayTrainingCount(0);
+      setTodayExercises([]);
       return;
     }
 
     try {
-      // 全履歴を取得（累計計算用）
+      // 全履歴を取得（複合インデックス不要のシンプルなクエリ）
       const allQuery = query(
         collection(db, 'exerciseHistory'),
-        where('userId', '==', user.uid),
-        orderBy('timestamp', 'desc')
+        where('userId', '==', user.uid)
       );
       const allSnapshot = await getDocs(allQuery);
       const allHistory = [];
       allSnapshot.forEach((doc) => {
         allHistory.push({ id: doc.id, ...doc.data() });
+      });
+
+      // クライアント側でソート（timestamp降順）
+      allHistory.sort((a, b) => {
+        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+        return dateB - dateA;
       });
 
       // 表示用は最新50件
@@ -269,6 +285,17 @@ function App() {
       const totalWorkSecs = allHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
       setTotalWorkSecondsAllTime(totalWorkSecs);
       setTotalTrainingCount(allHistory.length);
+
+      // 直近24時間のデータを計算
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const todayItems = allHistory.filter(item => {
+        const itemDate = item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
+        return itemDate >= twentyFourHoursAgo;
+      });
+      setTodayWorkSeconds(todayItems.reduce((sum, item) => sum + (item.workSeconds || 0), 0));
+      setTodayTrainingCount(todayItems.length);
+      setTodayExercises(todayItems.slice(0, 3));
 
       // 初回ユーザー判定（履歴が0件ならガイドを表示）
       if (allHistory.length === 0) {
@@ -558,17 +585,8 @@ function App() {
     }
   };
 
-  // 今日の運動をフィルタ（timestampベースで確実に比較）
-  const todayHistory = exerciseHistory.filter(item => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const itemDate = item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : item.timestamp);
-    return itemDate >= todayStart;
-  });
-
-  // 今日の作業時間（履歴から計算 + 現在のセッション）
-  const todayWorkSecondsFromHistory = todayHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
-  const totalTodayWorkSeconds = todayWorkSecondsFromHistory + workSessionSeconds;
+  // 今日の作業時間（Firestoreから取得済み + 現在のセッション）
+  const totalTodayWorkSeconds = todayWorkSeconds + workSessionSeconds;
 
   // 時間フォーマット（秒・分・時間）
   const formatWorkTime = (seconds) => {
@@ -660,7 +678,7 @@ function App() {
             <span style={styles.statLabel}>今日の作業時間</span>
           </div>
           <div style={styles.statItem}>
-            <span style={styles.statValue}>{todayHistory.length}回</span>
+            <span style={styles.statValue}>{todayTrainingCount}回</span>
             <span style={styles.statLabel}>今日のトレーニング回数</span>
           </div>
         </div>
@@ -889,10 +907,10 @@ function App() {
         </div>
 
         {/* 今日の運動サマリー */}
-        {todayHistory.length > 0 && (
+        {todayExercises.length > 0 && (
           <div style={styles.todaySummary}>
             <h3 style={styles.todaySummaryTitle}>今日の運動</h3>
-            {todayHistory.slice(0, 3).map((item, index) => (
+            {todayExercises.map((item, index) => (
               <div key={index} style={styles.todaySummaryItem}>
                 <span>{item.exerciseName}</span>
                 <span style={styles.todaySummaryMeta}>
@@ -936,6 +954,7 @@ function App() {
                     </div>
                     <div style={styles.historyItemDetail}>
                       {item.isMeditation ? `${item.reps}分間` : `${item.reps}回 × ${item.sets}セット`}
+                      {item.workSeconds > 0 && ` | 作業 ${formatWorkTime(item.workSeconds)}`}
                     </div>
                   </div>
                 ))
