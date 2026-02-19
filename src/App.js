@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, auth, googleProvider } from './firebase';
-import { collection, addDoc, getDocs, query, Timestamp, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, Timestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 
 // 運動メニュー
@@ -121,6 +121,8 @@ function App() {
   const [exerciseHistory, setExerciseHistory] = useState([]);
   const [showGuide, setShowGuide] = useState(false);
   const [historyTab, setHistoryTab] = useState('day');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [todayWorkSeconds, setTodayWorkSeconds] = useState(0);
   const [todayExercises, setTodayExercises] = useState([]);
   
@@ -223,6 +225,32 @@ function App() {
       }
     } catch (error) {
       console.error('履歴の取得に失敗:', error);
+    }
+  }, [user]);
+
+  // 履歴を全消去
+  const deleteAllHistory = useCallback(async () => {
+    if (!user) return;
+    setDeleting(true);
+    try {
+      const allQuery = query(
+        collection(db, 'exerciseHistory'),
+        where('userId', '==', user.uid)
+      );
+      const snapshot = await getDocs(allQuery);
+      const deletePromises = [];
+      snapshot.forEach((d) => {
+        deletePromises.push(deleteDoc(doc(db, 'exerciseHistory', d.id)));
+      });
+      await Promise.all(deletePromises);
+      setExerciseHistory([]);
+      setTodayWorkSeconds(0);
+      setTodayExercises([]);
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('履歴の削除に失敗:', error);
+    } finally {
+      setDeleting(false);
     }
   }, [user]);
 
@@ -1111,6 +1139,38 @@ function App() {
                   />
                 </div>
               </div>
+
+              <div style={styles.settingSection}>
+                <h3 style={styles.settingSectionTitle}>データ</h3>
+                {showDeleteConfirm ? (
+                  <div style={styles.deleteConfirm}>
+                    <p style={styles.deleteConfirmText}>全ての運動履歴が削除されます。この操作は取り消せません。</p>
+                    <div style={styles.deleteConfirmButtons}>
+                      <button
+                        onClick={deleteAllHistory}
+                        disabled={deleting}
+                        style={styles.deleteConfirmYes}
+                      >
+                        {deleting ? '削除中...' : '削除する'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        disabled={deleting}
+                        style={styles.deleteConfirmNo}
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    style={styles.deleteHistoryButton}
+                  >
+                    履歴を消去
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1859,6 +1919,55 @@ const styles = {
     padding: '4px',
     MozAppearance: 'textfield',
     WebkitAppearance: 'none',
+  },
+  deleteHistoryButton: {
+    width: '100%',
+    padding: '14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(248, 113, 113, 0.4)',
+    background: 'rgba(248, 113, 113, 0.1)',
+    color: '#F87171',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  deleteConfirm: {
+    background: 'rgba(248, 113, 113, 0.1)',
+    border: '1px solid rgba(248, 113, 113, 0.3)',
+    borderRadius: '12px',
+    padding: '16px',
+  },
+  deleteConfirmText: {
+    margin: '0 0 14px 0',
+    fontSize: '14px',
+    color: '#FCA5A5',
+    lineHeight: '1.5',
+  },
+  deleteConfirmButtons: {
+    display: 'flex',
+    gap: '8px',
+  },
+  deleteConfirmYes: {
+    flex: 1,
+    padding: '12px',
+    borderRadius: '8px',
+    border: 'none',
+    background: '#DC2626',
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  deleteConfirmNo: {
+    flex: 1,
+    padding: '12px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.2)',
+    background: 'transparent',
+    color: '#94A3B8',
+    fontSize: '14px',
+    fontWeight: '500',
+    cursor: 'pointer',
   },
   guideSection: {
     marginBottom: '24px',
