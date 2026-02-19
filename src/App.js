@@ -122,6 +122,7 @@ function App() {
   const [totalWorkSecondsAllTime, setTotalWorkSecondsAllTime] = useState(0);
   const [totalTrainingCount, setTotalTrainingCount] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
+  const [historyTab, setHistoryTab] = useState('day');
   const [todayWorkSeconds, setTodayWorkSeconds] = useState(0);
   const [todayExercises, setTodayExercises] = useState([]);
   
@@ -210,8 +211,7 @@ function App() {
         return dateB - dateA;
       });
 
-      // 表示用は最新50件
-      setExerciseHistory(allHistory.slice(0, 50));
+      setExerciseHistory(allHistory);
 
       // 累計作業時間と累計トレーニング回数を計算
       const totalWorkSecs = allHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
@@ -543,6 +543,77 @@ function App() {
       return `${mins}分${secs > 0 ? `${secs}秒` : ''}`;
     }
     return `${secs}秒`;
+  };
+
+  // 履歴を期間でグループ化
+  const getHistoryGroups = () => {
+    const toDate = (item) => item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
+
+    const groupBy = (keyFn, labelFn) => {
+      const groups = {};
+      exerciseHistory.forEach(item => {
+        const date = toDate(item);
+        const key = keyFn(date);
+        if (!groups[key]) {
+          groups[key] = { label: labelFn(date), items: [], workSeconds: 0, sortKey: key };
+        }
+        groups[key].items.push(item);
+        groups[key].workSeconds += item.workSeconds || 0;
+      });
+      return Object.values(groups).sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+    };
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    switch (historyTab) {
+      case 'day':
+        return groupBy(
+          d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,
+          d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`
+        );
+      case 'week': {
+        return groupBy(
+          d => {
+            const jan1 = new Date(d.getFullYear(), 0, 1);
+            const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+            return `${d.getFullYear()}-W${pad(week)}`;
+          },
+          d => {
+            const day = d.getDay();
+            const mon = new Date(d);
+            mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+            const sun = new Date(mon);
+            sun.setDate(mon.getDate() + 6);
+            return `${mon.getMonth()+1}/${mon.getDate()} - ${sun.getMonth()+1}/${sun.getDate()}`;
+          }
+        );
+      }
+      case 'month':
+        return groupBy(
+          d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`,
+          d => `${d.getFullYear()}年${d.getMonth()+1}月`
+        );
+      case 'year':
+        return groupBy(
+          d => `${d.getFullYear()}`,
+          d => `${d.getFullYear()}年`
+        );
+      default:
+        return [];
+    }
+  };
+
+  // グループ内の種目集計
+  const summarizeExercises = (items) => {
+    const summary = {};
+    items.forEach(item => {
+      const key = item.exerciseId || item.exerciseName;
+      if (!summary[key]) {
+        summary[key] = { name: item.exerciseName, count: 0 };
+      }
+      summary[key].count += 1;
+    });
+    return Object.values(summary);
   };
 
   // 認証ロード中
@@ -901,20 +972,45 @@ function App() {
                   <span style={styles.historyStatLabel}>累計トレーニング回数</span>
                 </div>
               </div>
-              
-              <h3 style={styles.historyListTitle}>最近の運動</h3>
+
+              <div style={styles.historyTabs}>
+                {[
+                  { key: 'day', label: '日' },
+                  { key: 'week', label: '週' },
+                  { key: 'month', label: '月' },
+                  { key: 'year', label: '年' },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setHistoryTab(tab.key)}
+                    style={{
+                      ...styles.historyTab,
+                      ...(historyTab === tab.key ? styles.historyTabActive : {}),
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
               {exerciseHistory.length === 0 ? (
                 <p style={styles.noHistory}>まだ運動履歴がありません</p>
               ) : (
-                exerciseHistory.map((item, index) => (
-                  <div key={index} style={styles.historyItem}>
-                    <div style={styles.historyItemMain}>
-                      <span style={styles.historyItemName}>{item.exerciseName}</span>
-                      <span style={styles.historyItemDate}>{item.date}</span>
+                getHistoryGroups().map(group => (
+                  <div key={group.sortKey} style={styles.historyGroup}>
+                    <div style={styles.historyGroupHeader}>
+                      <span style={styles.historyGroupLabel}>{group.label}</span>
+                      <span style={styles.historyGroupMeta}>
+                        {group.items.length}回 | {formatWorkTime(group.workSeconds)}
+                      </span>
                     </div>
-                    <div style={styles.historyItemDetail}>
-                      {item.isMeditation ? `${item.reps}分間` : `${item.reps}回 × ${item.sets}セット`}
-                      {item.workSeconds > 0 && ` | 作業 ${formatWorkTime(item.workSeconds)}`}
+                    <div style={styles.historyGroupBody}>
+                      {summarizeExercises(group.items).map((ex, i) => (
+                        <div key={i} style={styles.historyGroupItem}>
+                          <span style={styles.historyGroupItemName}>{ex.name}</span>
+                          <span style={styles.historyGroupItemCount}>{ex.count}回</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))
@@ -1453,40 +1549,74 @@ const styles = {
     fontSize: '13px',
     color: '#94A3B8',
   },
-  historyListTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#F1F5F9',
-    marginBottom: '12px',
-  },
   noHistory: {
     textAlign: 'center',
     color: '#64748B',
     padding: '24px',
   },
-  historyItem: {
-    padding: '12px',
+  historyTabs: {
+    display: 'flex',
+    gap: '4px',
+    marginBottom: '20px',
     background: 'rgba(255,255,255,0.05)',
-    borderRadius: '8px',
-    marginBottom: '8px',
+    borderRadius: '10px',
+    padding: '4px',
   },
-  historyItemMain: {
+  historyTab: {
+    flex: 1,
+    padding: '10px 0',
+    border: 'none',
+    borderRadius: '8px',
+    background: 'transparent',
+    color: '#94A3B8',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  historyTabActive: {
+    background: 'rgba(59, 130, 246, 0.3)',
+    color: '#60A5FA',
+  },
+  historyGroup: {
+    marginBottom: '12px',
+    background: 'rgba(255,255,255,0.05)',
+    borderRadius: '12px',
+    overflow: 'hidden',
+  },
+  historyGroupHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '4px',
+    padding: '14px 16px',
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
   },
-  historyItemName: {
-    fontWeight: '600',
+  historyGroupLabel: {
+    fontWeight: '700',
+    fontSize: '15px',
     color: '#F1F5F9',
   },
-  historyItemDate: {
+  historyGroupMeta: {
     fontSize: '13px',
-    color: '#64748B',
-  },
-  historyItemDetail: {
-    fontSize: '14px',
     color: '#94A3B8',
+  },
+  historyGroupBody: {
+    padding: '8px 16px',
+  },
+  historyGroupItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.03)',
+  },
+  historyGroupItemName: {
+    fontSize: '14px',
+    color: '#CBD5E1',
+  },
+  historyGroupItemCount: {
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#10B981',
   },
   menuInstruction: {
     fontSize: '14px',
