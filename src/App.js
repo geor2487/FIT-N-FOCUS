@@ -58,6 +58,33 @@ const exerciseMenu = [
   },
 ];
 
+// Firestoreタイムスタンプ→Date変換
+const toDate = (item) =>
+  item.timestamp?.toDate
+    ? item.timestamp.toDate()
+    : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
+
+// フェーズ色・ラベル
+const PHASE_COLORS = {
+  work: '#3B82F6',
+  'select-exercise': '#F59E0B',
+  'exercise-ready': '#F59E0B',
+  countdown: '#F59E0B',
+  exercise: '#10B981',
+  interval: '#F59E0B',
+  rest: '#8B5CF6',
+};
+
+const PHASE_LABELS = {
+  work: '集中タイム',
+  'select-exercise': 'メニュー選択',
+  'exercise-ready': '運動準備',
+  countdown: '準備',
+  exercise: 'エクササイズ',
+  interval: 'インターバル',
+  rest: '休憩',
+};
+
 // ピクトグラムアイコン
 const ExerciseIcon = ({ type, size = 80 }) => {
   const c = '#94A3B8';
@@ -261,6 +288,49 @@ const ExerciseIcon = ({ type, size = 80 }) => {
   return icons[type] || icons['pushup'];
 };
 
+// +/−ボタン付き数値入力
+const NumberInput = ({ label, value, onChange, min = 1 }) => (
+  <div style={styles.exerciseInputGroup}>
+    <label style={styles.exerciseInputLabel}>{label}</label>
+    <div style={styles.exerciseInputControl}>
+      <button
+        style={styles.exerciseInputButton}
+        onClick={() => onChange(Math.max(min, value - 1))}
+      >
+        −
+      </button>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) =>
+          onChange(e.target.value === '' ? '' : parseInt(e.target.value))
+        }
+        onBlur={(e) => onChange(Math.max(min, parseInt(e.target.value) || min))}
+        style={styles.exerciseInputValueInput}
+        min={min}
+      />
+      <button
+        style={styles.exerciseInputButton}
+        onClick={() => onChange(value + 1)}
+      >
+        +
+      </button>
+    </div>
+  </div>
+);
+
+// 運動回数×セット表示
+const ExerciseStatsDisplay = ({ reps, currentSet, sets }) => (
+  <div style={styles.exerciseStats}>
+    <span style={styles.exerciseStat}>{reps}回</span>
+    <span style={styles.exerciseStatDivider}>×</span>
+    <span style={styles.exerciseStat}>
+      {currentSet}/{sets}セット目
+    </span>
+  </div>
+);
+
 function App() {
   // 認証状態
   const [user, setUser] = useState(null);
@@ -367,29 +437,16 @@ function App() {
       });
 
       // クライアント側でソート（timestamp降順）
-      allHistory.sort((a, b) => {
-        const dateA = a.timestamp?.toDate
-          ? a.timestamp.toDate()
-          : new Date(a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
-        const dateB = b.timestamp?.toDate
-          ? b.timestamp.toDate()
-          : new Date(b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
-        return dateB - dateA;
-      });
+      allHistory.sort((a, b) => toDate(b) - toDate(a));
 
       setExerciseHistory(allHistory);
 
       // 今日（午前0時〜）のデータを計算
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      const todayItems = allHistory.filter((item) => {
-        const itemDate = item.timestamp?.toDate
-          ? item.timestamp.toDate()
-          : new Date(
-              item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0
-            );
-        return itemDate >= todayStart;
-      });
+      const todayItems = allHistory.filter(
+        (item) => toDate(item) >= todayStart
+      );
       setTodayWorkSeconds(
         todayItems.reduce((sum, item) => sum + (item.workSeconds || 0), 0)
       );
@@ -561,6 +618,49 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning, phase]);
 
+  // 運動完了処理（瞑想完了/セット間/全セット完了の3分岐）
+  const completeExercise = useCallback(
+    (notify = false) => {
+      if (selectedExercise.isMeditation) {
+        saveExerciseHistory(
+          selectedExercise,
+          meditationMinutes,
+          1,
+          workSessionSeconds
+        );
+        if (notify)
+          sendNotification('瞑想完了', `${restMinutes}分間休憩しましょう`);
+        setPhase('rest');
+        setTimeLeft(restMinutes * 60);
+        setWorkSessionSeconds(0);
+      } else if (currentSet < sets) {
+        if (notify)
+          sendNotification('インターバル', `${intervalSeconds}秒休憩`);
+        setPhase('interval');
+        setTimeLeft(intervalSeconds);
+      } else {
+        saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
+        if (notify)
+          sendNotification('運動完了', `${restMinutes}分間休憩しましょう`);
+        setPhase('rest');
+        setTimeLeft(restMinutes * 60);
+        setWorkSessionSeconds(0);
+      }
+    },
+    [
+      selectedExercise,
+      meditationMinutes,
+      workSessionSeconds,
+      restMinutes,
+      currentSet,
+      sets,
+      intervalSeconds,
+      reps,
+      saveExerciseHistory,
+      sendNotification,
+    ]
+  );
+
   // タイマー終了時の処理
   useEffect(() => {
     if (isRunning && timeLeft === 0) {
@@ -572,30 +672,7 @@ function App() {
         setPhase('select-exercise');
         setIsRunning(false);
       } else if (phase === 'exercise') {
-        if (selectedExercise.isMeditation) {
-          // 瞑想完了 → 直接休憩へ
-          saveExerciseHistory(
-            selectedExercise,
-            meditationMinutes,
-            1,
-            workSessionSeconds
-          );
-          sendNotification('瞑想完了', `${restMinutes}分間休憩しましょう`);
-          setPhase('rest');
-          setTimeLeft(restMinutes * 60);
-          setWorkSessionSeconds(0);
-        } else if (currentSet < sets) {
-          sendNotification('インターバル', `${intervalSeconds}秒休憩`);
-          setPhase('interval');
-          setTimeLeft(intervalSeconds);
-        } else {
-          // 全セット完了 → 履歴保存（作業時間も含める）
-          saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
-          sendNotification('運動完了', `${restMinutes}分間休憩しましょう`);
-          setPhase('rest');
-          setTimeLeft(restMinutes * 60);
-          setWorkSessionSeconds(0);
-        }
+        completeExercise(true);
       } else if (phase === 'countdown') {
         // カウントダウン完了 → 運動開始
         setPhase('exercise');
@@ -622,14 +699,8 @@ function App() {
     sets,
     workMinutes,
     exerciseSeconds,
-    intervalSeconds,
-    restMinutes,
-    selectedExercise,
     sendNotification,
-    saveExerciseHistory,
-    reps,
-    workSessionSeconds,
-    meditationMinutes,
+    completeExercise,
   ]);
 
   // readyフェーズ中にworkMinutesが変わったらタイマーも即更新
@@ -689,29 +760,10 @@ function App() {
 
   const skipPhase = () => {
     if (phase === 'countdown') {
-      // カウントダウンスキップ → 運動開始
       setPhase('exercise');
       setTimeLeft(exerciseSeconds);
     } else if (phase === 'exercise') {
-      if (selectedExercise.isMeditation) {
-        saveExerciseHistory(
-          selectedExercise,
-          meditationMinutes,
-          1,
-          workSessionSeconds
-        );
-        setPhase('rest');
-        setTimeLeft(restMinutes * 60);
-        setWorkSessionSeconds(0);
-      } else if (currentSet < sets) {
-        setPhase('interval');
-        setTimeLeft(intervalSeconds);
-      } else {
-        saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
-        setPhase('rest');
-        setTimeLeft(restMinutes * 60);
-        setWorkSessionSeconds(0);
-      }
+      completeExercise();
     } else if (phase === 'interval') {
       setCurrentSet((s) => s + 1);
       setPhase('countdown');
@@ -729,47 +781,8 @@ function App() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getPhaseColor = () => {
-    switch (phase) {
-      case 'work':
-        return '#3B82F6';
-      case 'select-exercise':
-        return '#F59E0B';
-      case 'exercise-ready':
-        return '#F59E0B';
-      case 'countdown':
-        return '#F59E0B';
-      case 'exercise':
-        return '#10B981';
-      case 'interval':
-        return '#F59E0B';
-      case 'rest':
-        return '#8B5CF6';
-      default:
-        return '#6B7280';
-    }
-  };
-
-  const getPhaseLabel = () => {
-    switch (phase) {
-      case 'work':
-        return '集中タイム';
-      case 'select-exercise':
-        return 'メニュー選択';
-      case 'exercise-ready':
-        return '運動準備';
-      case 'countdown':
-        return '準備';
-      case 'exercise':
-        return 'エクササイズ';
-      case 'interval':
-        return 'インターバル';
-      case 'rest':
-        return '休憩';
-      default:
-        return 'スタンバイ';
-    }
-  };
+  const phaseColor = PHASE_COLORS[phase] || '#6B7280';
+  const phaseLabel = PHASE_LABELS[phase] || 'スタンバイ';
 
   // iOS判定
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -808,11 +821,6 @@ function App() {
 
   // 履歴を期間でグループ化
   const getHistoryGroups = () => {
-    const toDate = (item) =>
-      item.timestamp?.toDate
-        ? item.timestamp.toDate()
-        : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
-
     const groupBy = (keyFn, labelFn) => {
       const groups = {};
       exerciseHistory.forEach((item) => {
@@ -892,10 +900,6 @@ function App() {
 
   // 現在の期間の集計（タブに連動）
   const getCurrentPeriodStats = () => {
-    const toDate = (item) =>
-      item.timestamp?.toDate
-        ? item.timestamp.toDate()
-        : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
     const now = new Date();
     let start;
 
@@ -1044,9 +1048,9 @@ function App() {
           </div>
         </div>
 
-        <div style={{ ...styles.timerContainer, borderColor: getPhaseColor() }}>
-          <div style={{ ...styles.phaseLabel, color: getPhaseColor() }}>
-            {getPhaseLabel()}
+        <div style={{ ...styles.timerContainer, borderColor: phaseColor }}>
+          <div style={{ ...styles.phaseLabel, color: phaseColor }}>
+            {phaseLabel}
           </div>
           <div style={styles.timer}>
             {phase === 'countdown' ? timeLeft : formatTime(timeLeft)}
@@ -1058,13 +1062,11 @@ function App() {
                 <ExerciseIcon type={selectedExercise.icon} size={100} />
               </div>
               <h2 style={styles.exerciseName}>{selectedExercise.name}</h2>
-              <div style={styles.exerciseStats}>
-                <span style={styles.exerciseStat}>{reps}回</span>
-                <span style={styles.exerciseStatDivider}>×</span>
-                <span style={styles.exerciseStat}>
-                  {currentSet}/{sets}セット目
-                </span>
-              </div>
+              <ExerciseStatsDisplay
+                reps={reps}
+                currentSet={currentSet}
+                sets={sets}
+              />
             </div>
           )}
 
@@ -1084,13 +1086,11 @@ function App() {
                   </span>
                 </div>
               ) : (
-                <div style={styles.exerciseStats}>
-                  <span style={styles.exerciseStat}>{reps}回</span>
-                  <span style={styles.exerciseStatDivider}>×</span>
-                  <span style={styles.exerciseStat}>
-                    {currentSet}/{sets}セット目
-                  </span>
-                </div>
+                <ExerciseStatsDisplay
+                  reps={reps}
+                  currentSet={currentSet}
+                  sets={sets}
+                />
               )}
               <p style={styles.exerciseTip}>{selectedExercise.tip}</p>
               <button
@@ -1118,13 +1118,11 @@ function App() {
                   </span>
                 </div>
               ) : (
-                <div style={styles.exerciseStats}>
-                  <span style={styles.exerciseStat}>{reps}回</span>
-                  <span style={styles.exerciseStatDivider}>×</span>
-                  <span style={styles.exerciseStat}>
-                    {currentSet}/{sets}セット目
-                  </span>
-                </div>
+                <ExerciseStatsDisplay
+                  reps={reps}
+                  currentSet={currentSet}
+                  sets={sets}
+                />
               )}
             </div>
           )}
@@ -1194,115 +1192,16 @@ function App() {
               </div>
               {selectedExercise.isMeditation ? (
                 <div style={styles.exerciseInputs}>
-                  <div style={styles.exerciseInputGroup}>
-                    <label style={styles.exerciseInputLabel}>時間（分）</label>
-                    <div style={styles.exerciseInputControl}>
-                      <button
-                        style={styles.exerciseInputButton}
-                        onClick={() =>
-                          setMeditationMinutes((m) => Math.max(1, m - 1))
-                        }
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={meditationMinutes}
-                        onChange={(e) =>
-                          setMeditationMinutes(
-                            e.target.value === ''
-                              ? ''
-                              : parseInt(e.target.value)
-                          )
-                        }
-                        onBlur={(e) =>
-                          setMeditationMinutes(
-                            Math.max(1, parseInt(e.target.value) || 1)
-                          )
-                        }
-                        style={styles.exerciseInputValueInput}
-                        min="1"
-                      />
-                      <button
-                        style={styles.exerciseInputButton}
-                        onClick={() => setMeditationMinutes((m) => m + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
+                  <NumberInput
+                    label="時間（分）"
+                    value={meditationMinutes}
+                    onChange={setMeditationMinutes}
+                  />
                 </div>
               ) : (
                 <div style={styles.exerciseInputs}>
-                  <div style={styles.exerciseInputGroup}>
-                    <label style={styles.exerciseInputLabel}>回数</label>
-                    <div style={styles.exerciseInputControl}>
-                      <button
-                        style={styles.exerciseInputButton}
-                        onClick={() => setReps((r) => Math.max(1, r - 1))}
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={reps}
-                        onChange={(e) =>
-                          setReps(
-                            e.target.value === ''
-                              ? ''
-                              : parseInt(e.target.value)
-                          )
-                        }
-                        onBlur={(e) =>
-                          setReps(Math.max(1, parseInt(e.target.value) || 1))
-                        }
-                        style={styles.exerciseInputValueInput}
-                        min="1"
-                      />
-                      <button
-                        style={styles.exerciseInputButton}
-                        onClick={() => setReps((r) => r + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div style={styles.exerciseInputGroup}>
-                    <label style={styles.exerciseInputLabel}>セット</label>
-                    <div style={styles.exerciseInputControl}>
-                      <button
-                        style={styles.exerciseInputButton}
-                        onClick={() => setSets((s) => Math.max(1, s - 1))}
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={sets}
-                        onChange={(e) =>
-                          setSets(
-                            e.target.value === ''
-                              ? ''
-                              : parseInt(e.target.value)
-                          )
-                        }
-                        onBlur={(e) =>
-                          setSets(Math.max(1, parseInt(e.target.value) || 1))
-                        }
-                        style={styles.exerciseInputValueInput}
-                        min="1"
-                      />
-                      <button
-                        style={styles.exerciseInputButton}
-                        onClick={() => setSets((s) => s + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
+                  <NumberInput label="回数" value={reps} onChange={setReps} />
+                  <NumberInput label="セット" value={sets} onChange={setSets} />
                 </div>
               )}
               <button
@@ -1321,7 +1220,7 @@ function App() {
               onClick={startTimer}
               style={{
                 ...styles.primaryButton,
-                backgroundColor: getPhaseColor(),
+                backgroundColor: phaseColor,
               }}
             >
               ▶ スタート
@@ -1333,7 +1232,7 @@ function App() {
               onClick={() => setIsRunning(true)}
               style={{
                 ...styles.primaryButton,
-                backgroundColor: getPhaseColor(),
+                backgroundColor: phaseColor,
               }}
             >
               ▶ 再開
@@ -1370,7 +1269,7 @@ function App() {
                 onClick={() => setIsRunning(true)}
                 style={{
                   ...styles.primaryButton,
-                  backgroundColor: getPhaseColor(),
+                  backgroundColor: phaseColor,
                 }}
               >
                 ▶ 再開
@@ -1388,20 +1287,7 @@ function App() {
         {todayExercises.length > 0 && (
           <div style={styles.todaySummary}>
             <h3 style={styles.todaySummaryTitle}>今日のトレーニング</h3>
-            {Object.values(
-              todayExercises.reduce((acc, item) => {
-                const key = item.exerciseId || item.exerciseName;
-                if (!acc[key]) {
-                  acc[key] = {
-                    name: item.exerciseName,
-                    count: 0,
-                    isMeditation: item.isMeditation,
-                  };
-                }
-                acc[key].count += 1;
-                return acc;
-              }, {})
-            ).map((summary, index) => (
+            {summarizeExercises(todayExercises).map((summary, index) => (
               <div key={index} style={styles.todaySummaryItem}>
                 <span>{summary.name}</span>
                 <span style={styles.todaySummaryMeta}>{summary.count}回</span>
@@ -1814,16 +1700,6 @@ const styles = {
     fontSize: '14px',
     fontWeight: '500',
   },
-  menuButton: {
-    background: 'rgba(255,255,255,0.1)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    color: '#F1F5F9',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
   settingsButton: {
     background: 'rgba(255,255,255,0.1)',
     border: '1px solid rgba(255,255,255,0.2)',
@@ -1965,25 +1841,6 @@ const styles = {
   restTip: {
     fontSize: '16px',
     color: '#94A3B8',
-    margin: 0,
-  },
-  readyInfo: {
-    marginTop: '24px',
-  },
-  selectedExercisePreview: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  selectedExerciseName: {
-    fontSize: '16px',
-    color: '#94A3B8',
-    margin: 0,
-  },
-  selectedExerciseMeta: {
-    fontSize: '14px',
-    color: '#64748B',
     margin: 0,
   },
   controls: {
@@ -2190,74 +2047,6 @@ const styles = {
     fontWeight: '600',
     color: '#10B981',
   },
-  menuInstruction: {
-    fontSize: '14px',
-    color: '#94A3B8',
-    marginBottom: '20px',
-    textAlign: 'center',
-  },
-  categorySection: {
-    marginBottom: '24px',
-  },
-  categoryTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#F1F5F9',
-    marginBottom: '12px',
-    paddingBottom: '8px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
-  },
-  exerciseItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-    padding: '16px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
-    marginBottom: '8px',
-    cursor: 'pointer',
-    border: '2px solid transparent',
-    transition: 'all 0.2s ease',
-  },
-  exerciseItemSelected: {
-    background: 'rgba(16, 185, 129, 0.15)',
-    borderColor: '#10B981',
-  },
-  exerciseItemIcon: {
-    width: '50px',
-    height: '50px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  exerciseItemContent: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  exerciseItemName: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#F1F5F9',
-  },
-  exerciseItemDescription: {
-    fontSize: '13px',
-    color: '#94A3B8',
-  },
-  checkMark: {
-    width: '28px',
-    height: '28px',
-    borderRadius: '50%',
-    background: '#10B981',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: '700',
-    fontSize: '16px',
-  },
   settingSection: {
     marginBottom: '24px',
   },
@@ -2341,11 +2130,6 @@ const styles = {
     margin: 0,
     lineHeight: '1.4',
   },
-  selectedDetailMeta: {
-    fontSize: '14px',
-    color: '#94A3B8',
-    margin: 0,
-  },
   confirmExerciseButton: {
     width: '100%',
     background: '#10B981',
@@ -2389,12 +2173,6 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  exerciseInputValue: {
-    fontSize: '24px',
-    fontWeight: '700',
-    color: '#F1F5F9',
-    minWidth: '40px',
   },
   exerciseInputValueInput: {
     width: '60px',
