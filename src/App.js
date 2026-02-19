@@ -173,7 +173,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
 
-  // フェーズ: 'ready' | 'work' | 'select-exercise' | 'exercise-ready' | 'exercise' | 'interval' | 'rest'
+  // フェーズ: 'ready' | 'work' | 'select-exercise' | 'exercise-ready' | 'countdown' | 'exercise' | 'interval' | 'rest'
   const [phase, setPhase] = useState('ready');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
@@ -286,12 +286,12 @@ function App() {
       setTotalWorkSecondsAllTime(totalWorkSecs);
       setTotalTrainingCount(allHistory.length);
 
-      // 直近24時間のデータを計算
-      const now = new Date();
-      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      // 今日（午前0時〜）のデータを計算
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       const todayItems = allHistory.filter(item => {
         const itemDate = item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
-        return itemDate >= twentyFourHoursAgo;
+        return itemDate >= todayStart;
       });
       setTodayWorkSeconds(todayItems.reduce((sum, item) => sum + (item.workSeconds || 0), 0));
       setTodayTrainingCount(todayItems.length);
@@ -450,11 +450,15 @@ function App() {
           setTimeLeft(restMinutes * 60);
           setWorkSessionSeconds(0);
         }
+      } else if (phase === 'countdown') {
+        // カウントダウン完了 → 運動開始
+        setPhase('exercise');
+        setTimeLeft(exerciseSeconds);
       } else if (phase === 'interval') {
         sendNotification('次のセット', `セット ${currentSet + 1}/${sets} を始めましょう`);
         setCurrentSet(s => s + 1);
-        setPhase('exercise');
-        setTimeLeft(exerciseSeconds);
+        setPhase('countdown');
+        setTimeLeft(3);
       } else if (phase === 'rest') {
         sendNotification('休憩終了', '作業を再開しましょう');
         setPhase('work');
@@ -490,11 +494,13 @@ function App() {
   };
 
   const startExercise = () => {
-    setPhase('exercise');
     if (selectedExercise.isMeditation) {
+      // 瞑想はカウントダウンなしで直接開始
+      setPhase('exercise');
       setTimeLeft(meditationMinutes * 60);
     } else {
-      setTimeLeft(exerciseSeconds);
+      setPhase('countdown');
+      setTimeLeft(3);
     }
     setIsRunning(true);
   };
@@ -511,7 +517,11 @@ function App() {
   };
 
   const skipPhase = () => {
-    if (phase === 'exercise') {
+    if (phase === 'countdown') {
+      // カウントダウンスキップ → 運動開始
+      setPhase('exercise');
+      setTimeLeft(exerciseSeconds);
+    } else if (phase === 'exercise') {
       if (selectedExercise.isMeditation) {
         saveExerciseHistory(selectedExercise, meditationMinutes, 1, workSessionSeconds);
         setPhase('rest');
@@ -528,8 +538,8 @@ function App() {
       }
     } else if (phase === 'interval') {
       setCurrentSet(s => s + 1);
-      setPhase('exercise');
-      setTimeLeft(exerciseSeconds);
+      setPhase('countdown');
+      setTimeLeft(3);
     } else if (phase === 'rest') {
       setPhase('work');
       setTimeLeft(workMinutes * 60);
@@ -548,6 +558,7 @@ function App() {
       case 'work': return '#3B82F6';
       case 'select-exercise': return '#F59E0B';
       case 'exercise-ready': return '#F59E0B';
+      case 'countdown': return '#F59E0B';
       case 'exercise': return '#10B981';
       case 'interval': return '#F59E0B';
       case 'rest': return '#8B5CF6';
@@ -560,6 +571,7 @@ function App() {
       case 'work': return '集中タイム';
       case 'select-exercise': return 'メニュー選択';
       case 'exercise-ready': return '運動準備';
+      case 'countdown': return '準備';
       case 'exercise': return 'エクササイズ';
       case 'interval': return 'インターバル';
       case 'rest': return '休憩';
@@ -688,9 +700,23 @@ function App() {
             {getPhaseLabel()}
           </div>
           <div style={styles.timer}>
-            {formatTime(timeLeft)}
+            {phase === 'countdown' ? timeLeft : formatTime(timeLeft)}
           </div>
-          
+
+          {phase === 'countdown' && (
+            <div style={styles.exerciseInfo}>
+              <div style={styles.exerciseIconContainer}>
+                <ExerciseIcon type={selectedExercise.icon} size={100} />
+              </div>
+              <h2 style={styles.exerciseName}>{selectedExercise.name}</h2>
+              <div style={styles.exerciseStats}>
+                <span style={styles.exerciseStat}>{reps}回</span>
+                <span style={styles.exerciseStatDivider}>×</span>
+                <span style={styles.exerciseStat}>{currentSet}/{sets}セット目</span>
+              </div>
+            </div>
+          )}
+
           {phase === 'exercise-ready' && (
             <div style={styles.exerciseInfo}>
               <div style={styles.exerciseIconContainer}>
@@ -882,7 +908,7 @@ function App() {
             </button>
           )}
 
-          {(phase === 'exercise' || phase === 'interval' || phase === 'rest') && isRunning && (
+          {(phase === 'countdown' || phase === 'exercise' || phase === 'interval' || phase === 'rest') && isRunning && (
             <>
               <button onClick={pauseTimer} style={styles.pauseButton}>
                 ⏸ 一時停止
@@ -893,7 +919,7 @@ function App() {
             </>
           )}
 
-          {(phase === 'exercise' || phase === 'interval' || phase === 'rest') && !isRunning && (
+          {(phase === 'countdown' || phase === 'exercise' || phase === 'interval' || phase === 'rest') && !isRunning && (
             <button onClick={() => setIsRunning(true)} style={{...styles.primaryButton, backgroundColor: getPhaseColor()}}>
               ▶ 再開
             </button>
