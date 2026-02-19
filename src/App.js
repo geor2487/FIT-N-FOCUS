@@ -6,59 +6,19 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 // 運動メニュー
 const exerciseMenu = [
   {
-    id: 'squat-basic',
-    category: 'スクワット',
-    name: 'ノーマルスクワット',
-    description: '足を肩幅に開き、膝がつま先より前に出ないように腰を落とします',
-    defaultReps: 10,
-    defaultSets: 2,
-    tip: '太もも・お尻を効率よく鍛える王道種目',
-    icon: 'squat-basic'
-  },
-  {
-    id: 'squat-sumo',
-    category: 'スクワット',
-    name: 'ワイドスクワット',
-    description: '足を大きく開き、つま先を外側に向けて腰を落とします',
-    defaultReps: 10,
-    defaultSets: 2,
-    tip: '内ももを重点的に鍛えられる',
-    icon: 'squat-wide'
-  },
-  {
-    id: 'squat-pulse',
-    category: 'スクワット',
-    name: 'パルススクワット',
-    description: '腰を落とした状態で小刻みに上下運動を繰り返します',
-    defaultReps: 15,
-    defaultSets: 2,
-    tip: '常に負荷がかかり続けて効果UP',
-    icon: 'squat-pulse'
-  },
-  {
-    id: 'pushup-desk',
+    id: 'pushup',
     category: '腕立て',
-    name: 'デスク腕立て伏せ',
-    description: 'デスクに手をついて斜めの状態で腕立て伏せ',
-    defaultReps: 10,
-    defaultSets: 2,
-    tip: '初心者OK デスクワークの合間に最適',
-    icon: 'pushup-desk'
-  },
-  {
-    id: 'pushup-normal',
-    category: '腕立て',
-    name: 'ノーマル腕立て伏せ',
+    name: '腕立て伏せ',
     description: '床に手をついて体をまっすぐに保ち上下運動',
     defaultReps: 10,
     defaultSets: 2,
     tip: '胸・腕・体幹を同時に鍛える万能種目',
-    icon: 'pushup-normal'
+    icon: 'pushup'
   },
   {
     id: 'situp',
     category: '腹筋',
-    name: 'クランチ',
+    name: '腹筋',
     description: '仰向けで膝を曲げ、肩甲骨が浮く程度に上体を起こします',
     defaultReps: 15,
     defaultSets: 2,
@@ -66,105 +26,80 @@ const exerciseMenu = [
     icon: 'situp'
   },
   {
+    id: 'squat',
+    category: 'スクワット',
+    name: 'スクワット',
+    description: '足を肩幅に開き、膝がつま先より前に出ないように腰を落とします',
+    defaultReps: 10,
+    defaultSets: 2,
+    tip: '太もも・お尻を効率よく鍛える王道種目',
+    icon: 'squat'
+  },
+  {
     id: 'meditation',
     category: '瞑想',
-    name: 'マインドフルネス瞑想',
+    name: '瞑想',
     description: '楽な姿勢で座り、呼吸に意識を集中させます',
     defaultReps: 1,
     defaultSets: 1,
-    defaultDuration: 300, // 5分
+    defaultDuration: 300,
     isMeditation: true,
     tip: '集中力回復・ストレス軽減に効果的',
     icon: 'meditation'
   },
 ];
 
-// 静止ピクトグラム
+// ピクトグラムアイコン
 const ExerciseIcon = ({ type, size = 80 }) => {
+  const c = '#94A3B8';
   const icons = {
-    'squat-basic': (
+    'pushup': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        <circle cx="50" cy="18" r="10" fill="#94A3B8"/>
-        <line x1="50" y1="28" x2="50" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="35" x2="35" y2="45" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="35" x2="65" y2="45" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="50" x2="40" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="50" x2="60" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="40" y1="70" x2="38" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="60" y1="70" x2="62" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-      </svg>
-    ),
-    'squat-wide': (
-      <svg viewBox="0 0 100 100" width={size} height={size}>
-        <circle cx="50" cy="20" r="10" fill="#94A3B8"/>
-        <line x1="50" y1="30" x2="50" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="38" x2="30" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="38" x2="70" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="50" x2="30" y2="65" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="50" x2="70" y2="65" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="30" y1="65" x2="25" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="70" y1="65" x2="75" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-      </svg>
-    ),
-    'squat-pulse': (
-      <svg viewBox="0 0 100 100" width={size} height={size}>
-        <circle cx="50" cy="25" r="10" fill="#94A3B8"/>
-        <line x1="50" y1="35" x2="50" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="42" x2="30" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="42" x2="70" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="55" x2="35" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="55" x2="65" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="35" y1="70" x2="30" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="65" y1="70" x2="70" y2="85" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <path d="M 80 45 L 85 50 L 80 55" stroke="#64748B" strokeWidth="2" fill="none"/>
-        <path d="M 80 55 L 85 60 L 80 65" stroke="#64748B" strokeWidth="2" fill="none"/>
-      </svg>
-    ),
-    'pushup-desk': (
-      <svg viewBox="0 0 100 100" width={size} height={size}>
-        <rect x="10" y="40" width="35" height="5" rx="2" fill="#64748B"/>
-        <rect x="10" y="45" width="5" height="25" fill="#64748B"/>
-        <rect x="40" y="45" width="5" height="25" fill="#64748B"/>
-        <circle cx="55" cy="35" r="8" fill="#94A3B8"/>
-        <line x1="55" y1="43" x2="45" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="45" y1="55" x2="30" y2="45" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="45" y1="55" x2="70" y2="65" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="70" y1="65" x2="85" y2="75" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-      </svg>
-    ),
-    'pushup-normal': (
-      <svg viewBox="0 0 100 100" width={size} height={size}>
-        <circle cx="20" cy="40" r="8" fill="#94A3B8"/>
-        <line x1="28" y1="42" x2="70" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="35" y1="47" x2="30" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="50" y1="50" x2="50" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="70" y1="55" x2="85" y2="60" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="85" y1="60" x2="90" y2="70" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="25" y1="72" x2="95" y2="72" stroke="#64748B" strokeWidth="2"/>
+        {/* 腕立て伏せ：斜めプランク姿勢 */}
+        <circle cx="78" cy="28" r="9" fill={c}/>
+        <line x1="72" y1="35" x2="22" y2="62" stroke={c} strokeWidth="8" strokeLinecap="round"/>
+        <line x1="65" y1="40" x2="72" y2="65" stroke={c} strokeWidth="7" strokeLinecap="round"/>
+        <line x1="22" y1="62" x2="14" y2="75" stroke={c} strokeWidth="7" strokeLinecap="round"/>
+        <line x1="14" y1="75" x2="10" y2="82" stroke={c} strokeWidth="5" strokeLinecap="round"/>
       </svg>
     ),
     'situp': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        <circle cx="35" cy="35" r="8" fill="#94A3B8"/>
-        <line x1="40" y1="40" x2="55" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="38" y1="38" x2="30" y2="30" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="55" y1="55" x2="75" y2="50" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="75" y1="50" x2="85" y2="60" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <line x1="20" y1="70" x2="90" y2="70" stroke="#64748B" strokeWidth="3" strokeLinecap="round"/>
+        {/* 腹筋：上体を起こしたクランチ姿勢 */}
+        <circle cx="38" cy="22" r="9" fill={c}/>
+        <line x1="42" y1="30" x2="52" y2="58" stroke={c} strokeWidth="8" strokeLinecap="round"/>
+        <line x1="38" y1="34" x2="55" y2="30" stroke={c} strokeWidth="6" strokeLinecap="round"/>
+        <line x1="52" y1="58" x2="72" y2="46" stroke={c} strokeWidth="8" strokeLinecap="round"/>
+        <line x1="72" y1="46" x2="82" y2="62" stroke={c} strokeWidth="7" strokeLinecap="round"/>
+        <line x1="82" y1="62" x2="80" y2="72" stroke={c} strokeWidth="5" strokeLinecap="round"/>
+      </svg>
+    ),
+    'squat': (
+      <svg viewBox="0 0 100 100" width={size} height={size}>
+        {/* スクワット：腰を落として腕を前に伸ばす */}
+        <circle cx="42" cy="16" r="9" fill={c}/>
+        <line x1="42" y1="25" x2="38" y2="48" stroke={c} strokeWidth="8" strokeLinecap="round"/>
+        <line x1="42" y1="30" x2="70" y2="32" stroke={c} strokeWidth="6" strokeLinecap="round"/>
+        <line x1="38" y1="48" x2="25" y2="62" stroke={c} strokeWidth="8" strokeLinecap="round"/>
+        <line x1="25" y1="62" x2="35" y2="80" stroke={c} strokeWidth="7" strokeLinecap="round"/>
+        <line x1="35" y1="80" x2="32" y2="88" stroke={c} strokeWidth="5" strokeLinecap="round"/>
       </svg>
     ),
     'meditation': (
       <svg viewBox="0 0 100 100" width={size} height={size}>
-        <circle cx="50" cy="25" r="10" fill="#94A3B8"/>
-        <line x1="50" y1="35" x2="50" y2="55" stroke="#94A3B8" strokeWidth="4" strokeLinecap="round"/>
-        <path d="M 35 50 Q 50 58 65 50" stroke="#94A3B8" strokeWidth="4" fill="none" strokeLinecap="round"/>
-        <path d="M 30 70 Q 50 75 70 70" stroke="#94A3B8" strokeWidth="4" fill="none" strokeLinecap="round"/>
-        <ellipse cx="50" cy="72" rx="25" ry="8" fill="none" stroke="#64748B" strokeWidth="2"/>
+        {/* 瞑想：あぐら座り + 電波マーク */}
+        <path d="M 42 8 Q 50 2 58 8" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        <path d="M 38 4 Q 50 -5 62 4" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
+        <circle cx="50" cy="22" r="9" fill={c}/>
+        <line x1="50" y1="31" x2="50" y2="56" stroke={c} strokeWidth="8" strokeLinecap="round"/>
+        <path d="M 50 40 Q 38 46 26 52 Q 22 54 28 62" stroke={c} strokeWidth="6" fill="none" strokeLinecap="round"/>
+        <path d="M 50 40 Q 62 46 74 52 Q 78 54 72 62" stroke={c} strokeWidth="6" fill="none" strokeLinecap="round"/>
+        <path d="M 28 62 Q 38 72 50 68 Q 62 72 72 62" stroke={c} strokeWidth="7" fill="none" strokeLinecap="round"/>
       </svg>
     ),
   };
 
-  return icons[type] || icons['squat-basic'];
+  return icons[type] || icons['pushup'];
 };
 
 function App() {
@@ -1663,7 +1598,7 @@ const styles = {
   },
   exerciseGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '8px',
     marginBottom: '16px',
   },
