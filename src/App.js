@@ -119,8 +119,6 @@ function App() {
   const [workSessionSeconds, setWorkSessionSeconds] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [exerciseHistory, setExerciseHistory] = useState([]);
-  const [totalWorkSecondsAllTime, setTotalWorkSecondsAllTime] = useState(0);
-  const [totalTrainingCount, setTotalTrainingCount] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
   const [historyTab, setHistoryTab] = useState('day');
   const [todayWorkSeconds, setTodayWorkSeconds] = useState(0);
@@ -172,8 +170,6 @@ function App() {
     try {
       await signOut(auth);
       setExerciseHistory([]);
-      setTotalWorkSecondsAllTime(0);
-      setTotalTrainingCount(0);
       setTodayWorkSeconds(0);
       setTodayExercises([]);
     } catch (error) {
@@ -185,8 +181,6 @@ function App() {
   const fetchHistory = useCallback(async () => {
     if (!user) {
       setExerciseHistory([]);
-      setTotalWorkSecondsAllTime(0);
-      setTotalTrainingCount(0);
       setTodayWorkSeconds(0);
       setTodayExercises([]);
       return;
@@ -212,11 +206,6 @@ function App() {
       });
 
       setExerciseHistory(allHistory);
-
-      // 累計作業時間と累計トレーニング回数を計算
-      const totalWorkSecs = allHistory.reduce((sum, item) => sum + (item.workSeconds || 0), 0);
-      setTotalWorkSecondsAllTime(totalWorkSecs);
-      setTotalTrainingCount(allHistory.length);
 
       // 今日（午前0時〜）のデータを計算
       const todayStart = new Date();
@@ -616,6 +605,40 @@ function App() {
     return Object.values(summary);
   };
 
+  // 現在の期間の集計（タブに連動）
+  const getCurrentPeriodStats = () => {
+    const toDate = (item) => item.timestamp?.toDate ? item.timestamp.toDate() : new Date(item.timestamp?.seconds ? item.timestamp.seconds * 1000 : 0);
+    const now = new Date();
+    let start;
+
+    switch (historyTab) {
+      case 'day':
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'week': {
+        const day = now.getDay();
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day === 0 ? 6 : day - 1));
+        break;
+      }
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        start = new Date(now.getFullYear(), 0, 1);
+        break;
+      default:
+        start = new Date(0);
+    }
+
+    const filtered = exerciseHistory.filter(item => toDate(item) >= start);
+    return {
+      workSeconds: filtered.reduce((sum, item) => sum + (item.workSeconds || 0), 0),
+      count: filtered.length,
+    };
+  };
+
+  const periodLabels = { day: '今日', week: '今週', month: '今月', year: '今年' };
+
   // 認証ロード中
   if (authLoading) {
     return (
@@ -962,17 +985,6 @@ function App() {
               <button onClick={() => setShowHistory(false)} style={styles.closeButton}>✕</button>
             </div>
             <div style={styles.modalContent}>
-              <div style={styles.historyStats}>
-                <div style={styles.historyStatItem}>
-                  <span style={styles.historyStatValue}>{formatWorkTime(totalWorkSecondsAllTime)}</span>
-                  <span style={styles.historyStatLabel}>累計作業時間</span>
-                </div>
-                <div style={styles.historyStatItem}>
-                  <span style={styles.historyStatValue}>{totalTrainingCount}回</span>
-                  <span style={styles.historyStatLabel}>累計トレーニング回数</span>
-                </div>
-              </div>
-
               <div style={styles.historyTabs}>
                 {[
                   { key: 'day', label: '日' },
@@ -991,6 +1003,17 @@ function App() {
                     {tab.label}
                   </button>
                 ))}
+              </div>
+
+              <div style={styles.historyStats}>
+                <div style={styles.historyStatItem}>
+                  <span style={styles.historyStatValue}>{formatWorkTime(getCurrentPeriodStats().workSeconds)}</span>
+                  <span style={styles.historyStatLabel}>{periodLabels[historyTab]}の作業時間</span>
+                </div>
+                <div style={styles.historyStatItem}>
+                  <span style={styles.historyStatValue}>{getCurrentPeriodStats().count}回</span>
+                  <span style={styles.historyStatLabel}>{periodLabels[historyTab]}のトレーニング</span>
+                </div>
               </div>
 
               {exerciseHistory.length === 0 ? (
