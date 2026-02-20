@@ -891,9 +891,18 @@ function App() {
     items.forEach((item) => {
       const key = item.exerciseId || item.exerciseName;
       if (!summary[key]) {
-        summary[key] = { name: item.exerciseName, count: 0 };
+        summary[key] = {
+          name: item.exerciseName,
+          isMeditation: item.isMeditation || false,
+          totalReps: 0,
+          totalMinutes: 0,
+        };
       }
-      summary[key].count += 1;
+      if (item.isMeditation) {
+        summary[key].totalMinutes += item.reps || 0;
+      } else {
+        summary[key].totalReps += (item.reps || 0) * (item.sets || 1);
+      }
     });
     return Object.values(summary);
   };
@@ -1290,7 +1299,11 @@ function App() {
             {summarizeExercises(todayExercises).map((summary, index) => (
               <div key={index} style={styles.todaySummaryItem}>
                 <span>{summary.name}</span>
-                <span style={styles.todaySummaryMeta}>{summary.count}回</span>
+                <span style={styles.todaySummaryMeta}>
+                  {summary.isMeditation
+                    ? `${summary.totalMinutes}分`
+                    : `${summary.totalReps}回`}
+                </span>
               </div>
             ))}
           </div>
@@ -1373,7 +1386,9 @@ function App() {
                             {ex.name}
                           </span>
                           <span style={styles.historyGroupItemCount}>
-                            {ex.count}回
+                            {ex.isMeditation
+                              ? `${ex.totalMinutes}分`
+                              : `${ex.totalReps}回`}
                           </span>
                         </div>
                       ))}
