@@ -11,6 +11,7 @@ import {
   doc,
 } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import formbricks from '@formbricks/js';
 
 // 運動メニュー
 const exerciseMenu = [
@@ -391,6 +392,18 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Formbricks初期化
+  useEffect(() => {
+    const envId = process.env.REACT_APP_FORMBRICKS_ENVIRONMENT_ID;
+    if (envId) {
+      formbricks.setup({
+        environmentId: envId,
+        appUrl: 'https://app.formbricks.com',
+        userId: user?.uid,
+      });
+    }
+  }, [user]);
 
   // ログイン
   const handleLogin = async () => {
