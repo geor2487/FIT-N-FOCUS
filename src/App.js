@@ -383,6 +383,7 @@ function App() {
 
   const timerRef = useRef(null);
   const lastTickRef = useRef(Date.now());
+  const sessionExerciseCountRef = useRef(0);
 
   // 認証状態を監視
   useEffect(() => {
@@ -643,6 +644,10 @@ function App() {
         );
         if (notify)
           sendNotification('瞑想完了', `${restMinutes}分間休憩しましょう`);
+        sessionExerciseCountRef.current += 1;
+        if (sessionExerciseCountRef.current === 3) {
+          formbricks.track('exercise_completed_3rd');
+        }
         setPhase('rest');
         setTimeLeft(restMinutes * 60);
         setWorkSessionSeconds(0);
@@ -655,6 +660,10 @@ function App() {
         saveExerciseHistory(selectedExercise, reps, sets, workSessionSeconds);
         if (notify)
           sendNotification('運動完了', `${restMinutes}分間休憩しましょう`);
+        sessionExerciseCountRef.current += 1;
+        if (sessionExerciseCountRef.current === 3) {
+          formbricks.track('exercise_completed_3rd');
+        }
         setPhase('rest');
         setTimeLeft(restMinutes * 60);
         setWorkSessionSeconds(0);
