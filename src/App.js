@@ -67,13 +67,13 @@ const toDate = (item) =>
 
 // フェーズ色・ラベル
 const PHASE_COLORS = {
-  work: '#3B82F6',
-  'select-exercise': '#F59E0B',
-  'exercise-ready': '#F59E0B',
-  countdown: '#F59E0B',
-  exercise: '#10B981',
-  interval: '#F59E0B',
-  rest: '#8B5CF6',
+  work: '#5BA4B5',
+  'select-exercise': '#C4956A',
+  'exercise-ready': '#C4956A',
+  countdown: '#C4956A',
+  exercise: '#8ED1DE',
+  interval: '#C4956A',
+  rest: '#7A9E6D',
 };
 
 const PHASE_LABELS = {
@@ -88,7 +88,7 @@ const PHASE_LABELS = {
 
 // ピクトグラムアイコン
 const ExerciseIcon = ({ type, size = 80 }) => {
-  const c = '#94A3B8';
+  const c = '#7B8FA1';
   const icons = {
     pushup: (
       <svg viewBox="0 0 100 100" width={size} height={size}>
@@ -336,7 +336,7 @@ function App() {
   // 認証状態
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [loginError, setLoginError] = useState('');
+  const [, setLoginError] = useState('');
 
   // フェーズ: 'ready' | 'work' | 'select-exercise' | 'exercise-ready' | 'countdown' | 'exercise' | 'interval' | 'rest'
   const [phase, setPhase] = useState('ready');
@@ -356,7 +356,7 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [todayWorkSeconds, setTodayWorkSeconds] = useState(0);
-  const [todayExercises, setTodayExercises] = useState([]);
+  const [, setTodayExercises] = useState([]);
 
   // 設定
   const [workMinutes, setWorkMinutes] = useState(25);
@@ -750,9 +750,9 @@ function App() {
     completeExercise,
   ]);
 
-  // readyフェーズ中にworkMinutesが変わったらタイマーも即更新
+  // 作業時間設定が変わったらタイマーに即反映（ready・work中）
   useEffect(() => {
-    if (phase === 'ready' && workMinutes > 0) {
+    if ((phase === 'ready' || phase === 'work') && workMinutes > 0) {
       setTimeLeft(workMinutes * 60);
     }
   }, [workMinutes, phase]);
@@ -806,7 +806,11 @@ function App() {
   };
 
   const skipPhase = () => {
-    if (phase === 'countdown') {
+    if (phase === 'select-exercise' || phase === 'exercise-ready') {
+      setPhase('rest');
+      setTimeLeft(restMinutes * 60);
+      setIsRunning(true);
+    } else if (phase === 'countdown') {
       setPhase('exercise');
       setTimeLeft(exerciseSeconds);
     } else if (phase === 'exercise') {
@@ -1010,31 +1014,47 @@ function App() {
     );
   }
 
+  // SVG circle timer calculations
+  const timerRadius = 148;
+  const timerCircumference = 2 * Math.PI * timerRadius;
+  const getTimerTotal = () => {
+    switch (phase) {
+      case 'work': return workMinutes * 60;
+      case 'exercise': return selectedExercise.isMeditation ? meditationMinutes * 60 : exerciseSeconds;
+      case 'countdown': return 3;
+      case 'interval': return intervalSeconds;
+      case 'rest': return restMinutes * 60;
+      default: return workMinutes * 60;
+    }
+  };
+  const timerProgress = phase === 'ready' ? 0 : (1 - timeLeft / getTimerTotal());
+  const timerDashoffset = timerCircumference * (1 - timerProgress);
+
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1 style={styles.logo}>FIT N' FOCUS</h1>
-        <div style={styles.headerButtons}>
+        <h1 style={styles.logo}>FIT <span style={styles.logoAccent}>N'</span> FOCUS</h1>
+        <div style={styles.headerRight}>
           {user && (
             <button
               onClick={() => setShowHistory(true)}
-              style={styles.historyButton}
+              style={styles.headerBtnHistory}
             >
               履歴
             </button>
           )}
           <button
             onClick={() => setShowSettings(true)}
-            style={styles.settingsButton}
+            style={styles.headerBtn}
           >
             設定
           </button>
           {user ? (
-            <button onClick={handleLogout} style={styles.logoutButton}>
+            <button onClick={handleLogout} style={styles.headerBtnLogout}>
               ログアウト
             </button>
           ) : (
-            <button onClick={handleLogin} style={styles.loginButton}>
+            <button onClick={handleLogin} style={styles.headerBtn}>
               ログイン
             </button>
           )}
@@ -1061,21 +1081,31 @@ function App() {
           </div>
         )}
 
-        <div style={styles.stats}>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>
-              {formatWorkTime(totalTodayWorkSeconds)}
-            </span>
-            <span style={styles.statLabel}>今日の作業時間</span>
-          </div>
-        </div>
-
-        <div style={{ ...styles.timerContainer, borderColor: phaseColor }}>
-          <div style={{ ...styles.phaseLabel, color: phaseColor }}>
-            {phaseLabel}
-          </div>
-          <div style={styles.timer}>
-            {phase === 'countdown' ? timeLeft : formatTime(timeLeft)}
+        <div style={styles.timerSection}>
+          <div style={styles.timerWrapper}>
+            <div style={styles.breathingRing} />
+            <svg style={styles.timerSvg} viewBox="0 0 320 320">
+              <circle cx="160" cy="160" r={timerRadius} style={styles.timerGlowRing} />
+              <circle cx="160" cy="160" r={timerRadius} style={styles.timerTrack} />
+              <circle
+                cx="160" cy="160" r={timerRadius}
+                style={{
+                  ...styles.timerProgressRing,
+                  stroke: phaseColor,
+                  strokeDasharray: timerCircumference,
+                  strokeDashoffset: timerDashoffset,
+                  filter: `drop-shadow(0 0 8px ${phaseColor}66)`,
+                }}
+              />
+            </svg>
+            <div style={styles.timerCenter}>
+              <div style={{ ...styles.timerMode, color: phaseColor }}>
+                {phaseLabel}
+              </div>
+              <div style={styles.timerDisplay}>
+                {phase === 'countdown' ? timeLeft : formatTime(timeLeft)}
+              </div>
+            </div>
           </div>
 
           {phase === 'countdown' && (
@@ -1123,6 +1153,12 @@ function App() {
                 {selectedExercise.isMeditation
                   ? '瞑想スタート'
                   : '運動スタート'}
+              </button>
+              <button
+                onClick={skipPhase}
+                style={styles.skipExerciseButton}
+              >
+                スキップ →
               </button>
             </div>
           )}
@@ -1232,95 +1268,69 @@ function App() {
               >
                 この運動で開始
               </button>
+              <button
+                onClick={skipPhase}
+                style={styles.skipExerciseButton}
+              >
+                トレーニングをスキップ →
+              </button>
             </div>
           )}
-        </div>
 
-        <div style={styles.controls}>
-          {phase === 'ready' && (
-            <button
-              onClick={startTimer}
-              style={{
-                ...styles.primaryButton,
-                backgroundColor: phaseColor,
-              }}
-            >
-              ▶ スタート
-            </button>
-          )}
-
-          {phase === 'work' && !isRunning && (
-            <button
-              onClick={() => setIsRunning(true)}
-              style={{
-                ...styles.primaryButton,
-                backgroundColor: phaseColor,
-              }}
-            >
-              ▶ 再開
-            </button>
-          )}
-
-          {phase === 'work' && isRunning && (
-            <button onClick={pauseTimer} style={styles.pauseButton}>
-              ⏸ 一時停止
-            </button>
-          )}
-
-          {(phase === 'countdown' ||
-            phase === 'exercise' ||
-            phase === 'interval' ||
-            phase === 'rest') &&
-            isRunning && (
-              <>
-                <button onClick={pauseTimer} style={styles.pauseButton}>
-                  ⏸ 一時停止
-                </button>
-                <button onClick={skipPhase} style={styles.skipButton}>
-                  スキップ →
-                </button>
-              </>
+          <div style={styles.controls}>
+            {phase === 'ready' && (
+              <button
+                onClick={startTimer}
+                style={styles.ctrlBtnPrimary}
+              >
+                ▶ スタート
+              </button>
             )}
 
-          {(phase === 'countdown' ||
-            phase === 'exercise' ||
-            phase === 'interval' ||
-            phase === 'rest') &&
-            !isRunning && (
+            {phase === 'work' && !isRunning && (
               <button
                 onClick={() => setIsRunning(true)}
-                style={{
-                  ...styles.primaryButton,
-                  backgroundColor: phaseColor,
-                }}
+                style={styles.ctrlBtnPrimary}
               >
                 ▶ 再開
               </button>
             )}
 
-          {phase !== 'ready' && (
-            <button onClick={resetTimer} style={styles.resetButton}>
-              リセット
-            </button>
-          )}
-        </div>
+            {phase === 'work' && isRunning && (
+              <button onClick={pauseTimer} style={styles.ctrlBtnPrimary}>
+                ⏸ 一時停止
+              </button>
+            )}
 
-        {/* 今日の種目別サマリー */}
-        {todayExercises.length > 0 && (
-          <div style={styles.todaySummary}>
-            <h3 style={styles.todaySummaryTitle}>今日のトレーニング</h3>
-            {summarizeExercises(todayExercises).map((summary, index) => (
-              <div key={index} style={styles.todaySummaryItem}>
-                <span>{summary.name}</span>
-                <span style={styles.todaySummaryMeta}>
-                  {summary.isMeditation
-                    ? `${summary.totalMinutes}分`
-                    : `${summary.totalReps}回`}
-                </span>
-              </div>
-            ))}
+            {(phase === 'countdown' ||
+              phase === 'exercise' ||
+              phase === 'interval' ||
+              phase === 'rest') &&
+              isRunning && (
+                <button onClick={pauseTimer} style={styles.ctrlBtnPrimary}>
+                  ⏸ 一時停止
+                </button>
+              )}
+
+            {(phase === 'countdown' ||
+              phase === 'exercise' ||
+              phase === 'interval' ||
+              phase === 'rest') &&
+              !isRunning && (
+                <button
+                  onClick={() => setIsRunning(true)}
+                  style={styles.ctrlBtnPrimary}
+                >
+                  ▶ 再開
+                </button>
+              )}
           </div>
-        )}
+
+          <div style={styles.todayStats}>
+            <span style={styles.todayStatsValue}>{formatWorkTime(totalTodayWorkSeconds)}</span>
+            <span style={styles.todayStatsLabel}>今日の作業時間</span>
+          </div>
+        </div>
       </main>
 
       {/* 履歴モーダル */}
@@ -1579,14 +1589,14 @@ function App() {
                     <div
                       style={{
                         ...styles.onboardingCycleIcon,
-                        background: 'rgba(59, 130, 246, 0.2)',
-                        borderColor: '#3B82F6',
+                        background: 'rgba(91, 164, 181, 0.15)',
+                        borderColor: '#5BA4B5',
                       }}
                     >
                       <span
                         style={{
                           ...styles.onboardingCycleEmoji,
-                          color: '#60A5FA',
+                          color: '#8ED1DE',
                         }}
                       >
                         WORK
@@ -1599,14 +1609,14 @@ function App() {
                     <div
                       style={{
                         ...styles.onboardingCycleIcon,
-                        background: 'rgba(16, 185, 129, 0.2)',
-                        borderColor: '#10B981',
+                        background: 'rgba(142, 209, 222, 0.15)',
+                        borderColor: '#8ED1DE',
                       }}
                     >
                       <span
                         style={{
                           ...styles.onboardingCycleEmoji,
-                          color: '#34D399',
+                          color: '#8ED1DE',
                         }}
                       >
                         FIT
@@ -1619,14 +1629,14 @@ function App() {
                     <div
                       style={{
                         ...styles.onboardingCycleIcon,
-                        background: 'rgba(139, 92, 246, 0.2)',
-                        borderColor: '#8B5CF6',
+                        background: 'rgba(122, 158, 109, 0.2)',
+                        borderColor: '#7A9E6D',
                       }}
                     >
                       <span
                         style={{
                           ...styles.onboardingCycleEmoji,
-                          color: '#A78BFA',
+                          color: '#7A9E6D',
                         }}
                       >
                         REST
@@ -1748,8 +1758,8 @@ function App() {
                     ...styles.onboardingDot,
                     background:
                       i === onboardingSlide
-                        ? '#F1F5F9'
-                        : 'rgba(148, 163, 184, 0.4)',
+                        ? '#8ED1DE'
+                        : 'rgba(91, 164, 181, 0.3)',
                   }}
                 />
               ))}
@@ -1785,12 +1795,14 @@ function App() {
 }
 
 const styles = {
+  // ── Base ──
   container: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    color: '#F1F5F9',
+    background: '#1B2838',
+    fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+    color: '#F2F6FA',
+    fontWeight: 500,
+    WebkitFontSmoothing: 'antialiased',
   },
   loadingContainer: {
     display: 'flex',
@@ -1799,8 +1811,10 @@ const styles = {
     minHeight: '100vh',
   },
   loadingText: {
-    fontSize: '18px',
-    color: '#94A3B8',
+    fontSize: '16px',
+    color: '#B0C2D3',
+    fontWeight: 500,
+    letterSpacing: '0.05em',
   },
   loginContainer: {
     display: 'flex',
@@ -1811,15 +1825,18 @@ const styles = {
     padding: '20px',
   },
   loginLogo: {
-    fontSize: '48px',
-    fontWeight: '700',
+    fontSize: '36px',
+    fontWeight: 700,
     marginBottom: '16px',
-    color: '#F1F5F9',
+    color: '#F2F6FA',
+    letterSpacing: '1.5px',
+    textShadow: '0 0 12px rgba(91, 164, 181, 0.2)',
   },
   loginSubtitle: {
-    fontSize: '16px',
-    color: '#94A3B8',
+    fontSize: '14px',
+    color: '#B0C2D3',
     marginBottom: '48px',
+    fontWeight: 500,
   },
   googleLoginButton: {
     display: 'flex',
@@ -1828,17 +1845,18 @@ const styles = {
     background: '#fff',
     color: '#333',
     border: 'none',
-    padding: '16px 32px',
-    borderRadius: '12px',
+    padding: '14px 32px',
+    borderRadius: '30px',
     cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: '600',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+    fontSize: '15px',
+    fontWeight: 600,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
   },
   loginNote: {
     fontSize: '14px',
-    color: '#64748B',
+    color: '#B0C2D3',
     marginTop: '24px',
+    fontWeight: 500,
   },
   loginError: {
     fontSize: '14px',
@@ -1846,130 +1864,240 @@ const styles = {
     marginTop: '16px',
     padding: '12px',
     background: 'rgba(248, 113, 113, 0.1)',
-    borderRadius: '8px',
+    borderRadius: '10px',
     maxWidth: '400px',
     wordBreak: 'break-all',
   },
-  logoutButton: {
-    background: 'rgba(248, 113, 113, 0.2)',
-    border: '1px solid rgba(248, 113, 113, 0.5)',
-    color: '#F87171',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
+
+  // ── Header ──
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '16px 24px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    padding: '16px 32px',
+    borderBottom: '1px solid rgba(91, 164, 181, 0.15)',
+    background: 'rgba(27, 40, 56, 0.95)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     flexWrap: 'wrap',
     gap: '12px',
   },
   logo: {
-    fontSize: '36px',
-    fontWeight: '700',
+    fontSize: '22px',
+    fontWeight: 700,
     margin: 0,
-    color: '#F1F5F9',
+    color: '#F2F6FA',
+    letterSpacing: '1.5px',
+    textShadow: '0 0 12px rgba(91, 164, 181, 0.2)',
   },
-  headerButtons: {
+  logoAccent: {
+    color: '#8ED1DE',
+    textShadow: '0 0 16px rgba(142, 209, 222, 0.3)',
+  },
+  todayStats: {
     display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: '10px',
+    padding: '10px 24px',
+    marginTop: '24px',
+    background: 'rgba(91, 164, 181, 0.08)',
+    borderRadius: '10px',
+    border: '1px solid rgba(91, 164, 181, 0.12)',
+    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.2), inset 0 0 20px rgba(91, 164, 181, 0.03)',
   },
-  historyButton: {
-    background: 'rgba(139, 92, 246, 0.2)',
-    border: '1px solid rgba(139, 92, 246, 0.5)',
-    color: '#A78BFA',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    cursor: 'pointer',
+  todayStatsValue: {
+    fontSize: '26px',
+    fontWeight: 700,
+    color: '#8ED1DE',
+    textShadow: '0 0 14px rgba(142, 209, 222, 0.3)',
+  },
+  todayStatsLabel: {
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 500,
+    color: '#B0C2D3',
   },
-  settingsButton: {
-    background: 'rgba(255,255,255,0.1)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    color: '#F1F5F9',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    cursor: 'pointer',
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  headerBtn: {
+    background: 'transparent',
+    border: '1px solid rgba(91, 164, 181, 0.25)',
+    color: '#B0C2D3',
+    padding: '8px 20px',
+    borderRadius: '22px',
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.25s ease',
   },
+  headerBtnHistory: {
+    background: 'rgba(91, 164, 181, 0.1)',
+    border: '1px solid rgba(91, 164, 181, 0.25)',
+    color: '#8ED1DE',
+    padding: '8px 20px',
+    borderRadius: '22px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.25s ease',
+  },
+  headerBtnLogout: {
+    background: 'transparent',
+    border: '1px solid rgba(229, 115, 115, 0.25)',
+    color: '#E57373',
+    padding: '8px 20px',
+    borderRadius: '22px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.25s ease',
+  },
+
+  // ── Main ──
   main: {
-    maxWidth: '480px',
+    maxWidth: '600px',
     margin: '0 auto',
-    padding: '32px 20px',
+    padding: '40px 20px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
   },
   notificationBanner: {
-    background: 'rgba(245, 158, 11, 0.2)',
-    border: '1px solid rgba(245, 158, 11, 0.5)',
-    borderRadius: '12px',
-    padding: '16px',
+    background: 'rgba(196, 149, 106, 0.1)',
+    border: '1px solid rgba(196, 149, 106, 0.2)',
+    borderRadius: '10px',
+    padding: '12px 16px',
     marginBottom: '24px',
     textAlign: 'center',
+    width: '100%',
+    maxWidth: '400px',
   },
   notificationText: {
     margin: 0,
     fontSize: '14px',
-    color: '#FCD34D',
+    color: '#C4956A',
+    fontWeight: 500,
   },
   notificationButton: {
-    background: '#F59E0B',
-    color: '#fff',
-    border: 'none',
+    background: 'rgba(196, 149, 106, 0.2)',
+    color: '#C4956A',
+    border: '1px solid rgba(196, 149, 106, 0.3)',
     padding: '8px 20px',
-    borderRadius: '8px',
+    borderRadius: '22px',
     cursor: 'pointer',
     fontSize: '14px',
-    fontWeight: '600',
+    fontWeight: 600,
+    marginTop: '8px',
+    fontFamily: 'inherit',
   },
-  stats: {
+
+  // ── Timer Section ──
+  timerSection: {
     display: 'flex',
-    justifyContent: 'center',
-    gap: '48px',
-    marginBottom: '32px',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '36px',
+    padding: '24px 0',
+    width: '100%',
   },
-  statItem: {
+  timerWrapper: {
+    position: 'relative',
+    width: '320px',
+    height: '320px',
+  },
+  breathingRing: {
+    position: 'absolute',
+    top: '-8px',
+    left: '-8px',
+    right: '-8px',
+    bottom: '-8px',
+    borderRadius: '50%',
+    border: '1px solid rgba(142, 209, 222, 0.06)',
+    animation: 'oceanBreathe 4s ease-in-out infinite',
+  },
+  timerSvg: {
+    width: '100%',
+    height: '100%',
+    transform: 'rotate(-90deg)',
+    filter: 'drop-shadow(0 0 10px rgba(91, 164, 181, 0.15))',
+    animation: 'glowPulse 3s ease-in-out infinite',
+  },
+  timerTrack: {
+    fill: 'none',
+    stroke: 'rgba(91, 164, 181, 0.1)',
+    strokeWidth: 4,
+  },
+  timerGlowRing: {
+    fill: 'none',
+    stroke: 'rgba(91, 164, 181, 0.06)',
+    strokeWidth: 12,
+  },
+  timerProgressRing: {
+    fill: 'none',
+    strokeWidth: 4,
+    strokeLinecap: 'round',
+    transition: 'stroke-dashoffset 1s linear',
+  },
+  timerCenter: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
     textAlign: 'center',
   },
-  statValue: {
-    display: 'block',
-    fontSize: '36px',
-    fontWeight: '700',
-    color: '#F1F5F9',
-  },
-  statLabel: {
-    fontSize: '14px',
-    color: '#94A3B8',
-  },
-  timerContainer: {
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '24px',
-    padding: '40px',
-    textAlign: 'center',
-    border: '3px solid',
-    marginBottom: '24px',
-  },
-  phaseLabel: {
-    fontSize: '18px',
-    fontWeight: '600',
-    marginBottom: '8px',
+  timerMode: {
+    fontSize: '16px',
+    fontWeight: 600,
+    letterSpacing: '3px',
     textTransform: 'uppercase',
-    letterSpacing: '2px',
+    marginBottom: '8px',
+    textShadow: '0 0 16px rgba(142, 209, 222, 0.3)',
   },
-  timer: {
-    fontSize: '72px',
-    fontWeight: '700',
-    fontFamily: 'monospace',
-    letterSpacing: '4px',
+  timerDisplay: {
+    fontSize: '5rem',
+    fontWeight: 700,
+    color: '#F2F6FA',
+    fontVariantNumeric: 'tabular-nums',
+    lineHeight: 1,
+    textShadow: '0 0 20px rgba(91, 164, 181, 0.3)',
   },
+
+  // ── Controls ──
+  controls: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '16px',
+    marginTop: '28px',
+  },
+  ctrlBtnPrimary: {
+    background: 'linear-gradient(135deg, #5BA4B5, #4A8FA0)',
+    border: 'none',
+    color: '#F2F6FA',
+    padding: '14px 36px',
+    borderRadius: '30px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    transition: 'all 0.25s ease',
+    fontFamily: 'inherit',
+    fontSize: '16px',
+    fontWeight: 600,
+    boxShadow: '0 4px 16px rgba(91, 164, 181, 0.25)',
+  },
+
+  // ── Exercise Info (inside timer area) ──
   exerciseInfo: {
     marginTop: '24px',
+    textAlign: 'center',
   },
   exerciseIconContainer: {
     display: 'flex',
@@ -1977,16 +2105,18 @@ const styles = {
     marginBottom: '16px',
   },
   exerciseName: {
-    fontSize: '24px',
-    fontWeight: '700',
+    fontSize: '20px',
+    fontWeight: 700,
     margin: '0 0 8px 0',
-    color: '#10B981',
+    color: '#8ED1DE',
+    letterSpacing: '0.04em',
   },
   exerciseDescription: {
-    fontSize: '15px',
-    color: '#94A3B8',
+    fontSize: '14px',
+    color: '#B0C2D3',
     margin: '0 0 16px 0',
-    lineHeight: '1.5',
+    lineHeight: '1.6',
+    fontWeight: 500,
   },
   exerciseStats: {
     display: 'flex',
@@ -1996,109 +2126,189 @@ const styles = {
     marginBottom: '16px',
   },
   exerciseStat: {
-    fontSize: '20px',
-    fontWeight: '600',
-    color: '#F1F5F9',
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#F2F6FA',
   },
   exerciseStatDivider: {
-    fontSize: '20px',
-    color: '#64748B',
+    fontSize: '18px',
+    color: '#B0C2D3',
   },
   exerciseTip: {
     fontSize: '14px',
-    color: '#FCD34D',
+    color: '#C4956A',
     margin: '0 0 20px 0',
+    fontWeight: 500,
   },
   startExerciseButton: {
-    background: '#10B981',
-    color: '#fff',
+    background: 'linear-gradient(135deg, #5BA4B5, #4A8FA0)',
+    color: '#F2F6FA',
     border: 'none',
-    padding: '16px 48px',
-    borderRadius: '12px',
+    padding: '14px 36px',
+    borderRadius: '30px',
     cursor: 'pointer',
-    fontSize: '18px',
-    fontWeight: '600',
+    fontSize: '16px',
+    fontWeight: 600,
+    fontFamily: 'inherit',
+    boxShadow: '0 4px 16px rgba(91, 164, 181, 0.25)',
   },
   restInfo: {
     marginTop: '24px',
+    textAlign: 'center',
   },
   restMessage: {
-    fontSize: '20px',
-    fontWeight: '600',
-    color: '#8B5CF6',
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#7A9E6D',
     margin: '0 0 8px 0',
   },
   restTip: {
-    fontSize: '16px',
-    color: '#94A3B8',
+    fontSize: '14px',
+    color: '#B0C2D3',
     margin: 0,
+    fontWeight: 500,
   },
-  controls: {
+
+  // ── Select Exercise ──
+  selectExerciseContainer: {
+    marginTop: '24px',
+    textAlign: 'center',
+  },
+  selectExerciseTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#C4956A',
+    marginBottom: '16px',
+    textAlign: 'center',
+    letterSpacing: '3px',
+    textTransform: 'uppercase',
+    textShadow: '0 0 16px rgba(196, 149, 106, 0.3)',
+  },
+  exerciseGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '10px',
+    marginBottom: '16px',
+  },
+  exerciseGridItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '14px 10px',
+    background: 'rgba(37, 59, 79, 0.5)',
+    borderRadius: '14px',
+    cursor: 'pointer',
+    border: '1px solid rgba(91, 164, 181, 0.1)',
+    transition: 'all 0.25s ease',
+  },
+  exerciseGridItemSelected: {
+    background: 'rgba(91, 164, 181, 0.15)',
+    borderColor: '#5BA4B5',
+    boxShadow: '0 0 12px rgba(91, 164, 181, 0.15)',
+  },
+  exerciseGridName: {
+    fontSize: '14px',
+    color: '#B0C2D3',
+    textAlign: 'center',
+    lineHeight: '1.2',
+    fontWeight: 500,
+  },
+  selectedExerciseDetail: {
+    textAlign: 'center',
+    marginBottom: '16px',
+  },
+  selectedDetailName: {
+    fontSize: '16px',
+    fontWeight: 700,
+    color: '#8ED1DE',
+    margin: '0 0 8px 0',
+  },
+  selectedDetailDescription: {
+    fontSize: '14px',
+    color: '#B0C2D3',
+    margin: 0,
+    lineHeight: '1.5',
+    fontWeight: 500,
+  },
+  confirmExerciseButton: {
+    width: '100%',
+    background: 'linear-gradient(135deg, #5BA4B5, #4A8FA0)',
+    color: '#F2F6FA',
+    border: 'none',
+    padding: '14px',
+    borderRadius: '30px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: 600,
+    fontFamily: 'inherit',
+    boxShadow: '0 4px 16px rgba(91, 164, 181, 0.25)',
+  },
+  skipExerciseButton: {
+    width: '100%',
+    background: 'transparent',
+    color: '#B0C2D3',
+    border: '1px solid rgba(91, 164, 181, 0.25)',
+    padding: '10px',
+    borderRadius: '22px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 600,
+    marginTop: '10px',
+    fontFamily: 'inherit',
+  },
+  exerciseInputs: {
     display: 'flex',
     justifyContent: 'center',
-    gap: '12px',
-    flexWrap: 'wrap',
-    marginBottom: '24px',
+    gap: '32px',
+    marginBottom: '20px',
   },
-  primaryButton: {
-    color: '#fff',
-    border: 'none',
-    padding: '16px 48px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '18px',
-    fontWeight: '600',
+  exerciseInputGroup: {
+    textAlign: 'center',
   },
-  pauseButton: {
-    background: '#64748B',
-    color: '#fff',
-    border: 'none',
-    padding: '16px 48px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '18px',
-    fontWeight: '600',
-  },
-  skipButton: {
-    background: 'transparent',
-    color: '#94A3B8',
-    border: '1px solid #94A3B8',
-    padding: '16px 24px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '16px',
-  },
-  resetButton: {
-    background: 'transparent',
-    color: '#F87171',
-    border: '1px solid #F87171',
-    padding: '16px 24px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '16px',
-  },
-  todaySummary: {
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '16px',
-    padding: '16px',
-  },
-  todaySummaryTitle: {
+  exerciseInputLabel: {
+    display: 'block',
     fontSize: '14px',
-    fontWeight: '600',
-    color: '#94A3B8',
-    margin: '0 0 12px 0',
+    color: '#B0C2D3',
+    marginBottom: '8px',
+    fontWeight: 500,
   },
-  todaySummaryItem: {
+  exerciseInputControl: {
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '8px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.05)',
+    gap: '12px',
   },
-  todaySummaryMeta: {
-    fontSize: '13px',
-    color: '#64748B',
+  exerciseInputButton: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    border: '1px solid rgba(91, 164, 181, 0.25)',
+    background: 'rgba(91, 164, 181, 0.1)',
+    color: '#F2F6FA',
+    fontSize: '18px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'inherit',
+    fontWeight: 600,
   },
+  exerciseInputValueInput: {
+    width: '60px',
+    fontSize: '22px',
+    fontWeight: 700,
+    color: '#F2F6FA',
+    textAlign: 'center',
+    background: 'rgba(91, 164, 181, 0.08)',
+    border: '1px solid rgba(91, 164, 181, 0.2)',
+    borderRadius: '10px',
+    padding: '4px',
+    MozAppearance: 'textfield',
+    WebkitAppearance: 'none',
+    fontFamily: 'inherit',
+  },
+
+  // ── Modals ──
   modalOverlay: {
     position: 'fixed',
     top: 0,
@@ -2113,32 +2323,36 @@ const styles = {
     padding: '20px',
   },
   modal: {
-    background: '#1E293B',
-    borderRadius: '20px',
+    background: 'rgba(37, 59, 79, 0.95)',
+    borderRadius: '14px',
     width: '100%',
     maxWidth: '500px',
     maxHeight: '85vh',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
+    border: '1px solid rgba(91, 164, 181, 0.15)',
+    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)',
   },
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '20px 24px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    borderBottom: '1px solid rgba(91, 164, 181, 0.15)',
   },
   modalTitle: {
     margin: 0,
-    fontSize: '20px',
-    fontWeight: '600',
+    fontSize: '16px',
+    fontWeight: 700,
+    color: '#F2F6FA',
+    letterSpacing: '0.05em',
   },
   closeButton: {
     background: 'transparent',
     border: 'none',
-    color: '#94A3B8',
-    fontSize: '20px',
+    color: '#B0C2D3',
+    fontSize: '18px',
     cursor: 'pointer',
     padding: '4px',
   },
@@ -2146,77 +2360,91 @@ const styles = {
     padding: '20px 24px',
     overflowY: 'auto',
   },
+
+  // ── History ──
   historyStats: {
     display: 'flex',
     justifyContent: 'center',
     gap: '48px',
     marginBottom: '24px',
     padding: '20px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
+    background: 'rgba(91, 164, 181, 0.08)',
+    borderRadius: '14px',
+    border: '1px solid rgba(91, 164, 181, 0.12)',
   },
   historyStatItem: {
     textAlign: 'center',
   },
   historyStatValue: {
     display: 'block',
-    fontSize: '32px',
-    fontWeight: '700',
-    color: '#10B981',
+    fontSize: '26px',
+    fontWeight: 700,
+    color: '#8ED1DE',
+    lineHeight: 1.2,
+    textShadow: '0 0 14px rgba(142, 209, 222, 0.3)',
   },
   historyStatLabel: {
-    fontSize: '13px',
-    color: '#94A3B8',
+    fontSize: '14px',
+    color: '#B0C2D3',
+    fontWeight: 500,
+    marginTop: '4px',
   },
   noHistory: {
     textAlign: 'center',
-    color: '#64748B',
+    color: '#B0C2D3',
     padding: '24px',
+    fontSize: '14px',
+    fontWeight: 500,
   },
   historyTabs: {
     display: 'flex',
     gap: '4px',
     marginBottom: '20px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '10px',
+    background: 'rgba(91, 164, 181, 0.05)',
+    borderRadius: '22px',
     padding: '4px',
+    border: '1px solid rgba(91, 164, 181, 0.1)',
   },
   historyTab: {
     flex: 1,
-    padding: '10px 0',
+    padding: '8px 0',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '18px',
     background: 'transparent',
-    color: '#94A3B8',
-    fontSize: '15px',
-    fontWeight: '600',
+    color: '#B0C2D3',
+    fontSize: '14px',
+    fontWeight: 500,
     cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   historyTabActive: {
-    background: 'rgba(59, 130, 246, 0.3)',
-    color: '#60A5FA',
+    background: 'rgba(91, 164, 181, 0.15)',
+    color: '#8ED1DE',
+    fontWeight: 600,
   },
   historyGroup: {
     marginBottom: '12px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
+    background: 'rgba(91, 164, 181, 0.05)',
+    borderRadius: '14px',
     overflow: 'hidden',
+    border: '1px solid rgba(91, 164, 181, 0.1)',
   },
   historyGroupHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '14px 16px',
-    borderBottom: '1px solid rgba(255,255,255,0.05)',
+    padding: '12px 16px',
+    borderBottom: '1px solid rgba(91, 164, 181, 0.1)',
   },
   historyGroupLabel: {
-    fontWeight: '700',
-    fontSize: '15px',
-    color: '#F1F5F9',
+    fontWeight: 700,
+    fontSize: '14px',
+    color: '#F2F6FA',
   },
   historyGroupMeta: {
-    fontSize: '13px',
-    color: '#94A3B8',
+    fontSize: '14px',
+    color: '#B0C2D3',
+    fontWeight: 500,
   },
   historyGroupBody: {
     padding: '8px 16px',
@@ -2226,25 +2454,32 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '8px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.03)',
+    borderBottom: '1px solid rgba(91, 164, 181, 0.05)',
   },
   historyGroupItemName: {
     fontSize: '14px',
-    color: '#CBD5E1',
+    color: '#B0C2D3',
+    fontWeight: 500,
   },
   historyGroupItemCount: {
     fontSize: '14px',
-    fontWeight: '600',
-    color: '#10B981',
+    fontWeight: 600,
+    color: '#8ED1DE',
   },
+
+  // ── Settings ──
   settingSection: {
     marginBottom: '24px',
   },
   settingSectionTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#F1F5F9',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#B0C2D3',
     marginBottom: '16px',
+    letterSpacing: '3px',
+    textTransform: 'uppercase',
+    paddingBottom: '12px',
+    borderBottom: '1px solid rgba(91, 164, 181, 0.15)',
   },
   settingItem: {
     marginBottom: '16px',
@@ -2252,153 +2487,46 @@ const styles = {
   settingLabel: {
     display: 'block',
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 500,
     marginBottom: '8px',
-    color: '#94A3B8',
+    color: '#B0C2D3',
   },
   settingInput: {
     width: '100%',
-    padding: '12px 16px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    background: 'rgba(255,255,255,0.05)',
-    color: '#F1F5F9',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(91, 164, 181, 0.2)',
+    background: 'rgba(91, 164, 181, 0.08)',
+    color: '#F2F6FA',
     fontSize: '16px',
+    fontWeight: 600,
     boxSizing: 'border-box',
-  },
-  selectExerciseContainer: {
-    marginTop: '24px',
-  },
-  selectExerciseTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#F59E0B',
-    marginBottom: '16px',
-    textAlign: 'center',
-  },
-  exerciseGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '8px',
-    marginBottom: '16px',
-  },
-  exerciseGridItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '4px',
-    padding: '12px 8px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    border: '2px solid transparent',
-    transition: 'all 0.2s ease',
-  },
-  exerciseGridItemSelected: {
-    background: 'rgba(16, 185, 129, 0.15)',
-    borderColor: '#10B981',
-  },
-  exerciseGridName: {
-    fontSize: '11px',
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: '1.2',
-  },
-  selectedExerciseDetail: {
-    textAlign: 'center',
-    marginBottom: '16px',
-  },
-  selectedDetailName: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#10B981',
-    margin: '0 0 8px 0',
-  },
-  selectedDetailDescription: {
-    fontSize: '13px',
-    color: '#94A3B8',
-    margin: 0,
-    lineHeight: '1.4',
-  },
-  confirmExerciseButton: {
-    width: '100%',
-    background: '#10B981',
-    color: '#fff',
-    border: 'none',
-    padding: '16px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: '600',
-  },
-  exerciseInputs: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '32px',
-    marginBottom: '20px',
-  },
-  exerciseInputGroup: {
-    textAlign: 'center',
-  },
-  exerciseInputLabel: {
-    display: 'block',
-    fontSize: '13px',
-    color: '#94A3B8',
-    marginBottom: '8px',
-  },
-  exerciseInputControl: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  exerciseInputButton: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '50%',
-    border: '1px solid rgba(255,255,255,0.3)',
-    background: 'rgba(255,255,255,0.1)',
-    color: '#F1F5F9',
-    fontSize: '20px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exerciseInputValueInput: {
-    width: '60px',
-    fontSize: '24px',
-    fontWeight: '700',
-    color: '#F1F5F9',
-    textAlign: 'center',
-    background: 'rgba(255,255,255,0.1)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    borderRadius: '8px',
-    padding: '4px',
-    MozAppearance: 'textfield',
-    WebkitAppearance: 'none',
+    fontFamily: 'inherit',
   },
   deleteHistoryButton: {
     width: '100%',
-    padding: '14px',
-    borderRadius: '10px',
-    border: '1px solid rgba(248, 113, 113, 0.4)',
-    background: 'rgba(248, 113, 113, 0.1)',
-    color: '#F87171',
-    fontSize: '15px',
-    fontWeight: '600',
+    padding: '12px',
+    borderRadius: '22px',
+    border: '1px solid rgba(229, 115, 115, 0.25)',
+    background: 'rgba(229, 115, 115, 0.08)',
+    color: '#E57373',
+    fontSize: '14px',
+    fontWeight: 600,
     cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   deleteConfirm: {
-    background: 'rgba(248, 113, 113, 0.1)',
-    border: '1px solid rgba(248, 113, 113, 0.3)',
-    borderRadius: '12px',
+    background: 'rgba(229, 115, 115, 0.08)',
+    border: '1px solid rgba(229, 115, 115, 0.2)',
+    borderRadius: '14px',
     padding: '16px',
   },
   deleteConfirmText: {
     margin: '0 0 14px 0',
     fontSize: '14px',
     color: '#FCA5A5',
-    lineHeight: '1.5',
+    lineHeight: '1.6',
+    fontWeight: 500,
   },
   deleteConfirmButtons: {
     display: 'flex',
@@ -2406,98 +2534,37 @@ const styles = {
   },
   deleteConfirmYes: {
     flex: 1,
-    padding: '12px',
-    borderRadius: '8px',
+    padding: '10px',
+    borderRadius: '22px',
     border: 'none',
     background: '#DC2626',
     color: '#fff',
     fontSize: '14px',
-    fontWeight: '600',
+    fontWeight: 600,
     cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   deleteConfirmNo: {
     flex: 1,
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.2)',
+    padding: '10px',
+    borderRadius: '22px',
+    border: '1px solid rgba(91, 164, 181, 0.25)',
     background: 'transparent',
-    color: '#94A3B8',
+    color: '#B0C2D3',
     fontSize: '14px',
-    fontWeight: '500',
+    fontWeight: 500,
     cursor: 'pointer',
+    fontFamily: 'inherit',
   },
-  guideSection: {
-    marginBottom: '24px',
-  },
-  guideSectionTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#F1F5F9',
-    marginBottom: '20px',
-    textAlign: 'center',
-  },
-  guideStep: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '16px',
-    marginBottom: '20px',
-  },
-  guideStepNumber: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '50%',
-    background: '#3B82F6',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: '700',
-    fontSize: '16px',
-    flexShrink: 0,
-  },
-  guideStepContent: {
-    flex: 1,
-  },
-  guideStepTitle: {
-    fontSize: '15px',
-    fontWeight: '600',
-    color: '#F1F5F9',
-    margin: '0 0 4px 0',
-  },
-  guideStepDesc: {
-    fontSize: '14px',
-    color: '#94A3B8',
-    margin: 0,
-    lineHeight: '1.5',
-  },
-  guideCloseButton: {
-    width: '100%',
-    background: '#3B82F6',
-    color: '#fff',
-    border: 'none',
-    padding: '16px',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: '600',
-  },
-  loginButton: {
-    background: 'rgba(59, 130, 246, 0.2)',
-    border: '1px solid rgba(59, 130, 246, 0.5)',
-    color: '#60A5FA',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
+
+  // ── Onboarding ──
   onboardingOverlay: {
     position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0,0,0,0.85)',
+    background: 'rgba(21, 31, 43, 0.95)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2516,16 +2583,18 @@ const styles = {
     textAlign: 'center',
   },
   onboardingTitle: {
-    fontSize: '28px',
-    fontWeight: '700',
-    color: '#F1F5F9',
+    fontSize: '24px',
+    fontWeight: 700,
+    color: '#F2F6FA',
     marginBottom: '16px',
+    letterSpacing: '0.04em',
   },
   onboardingDesc: {
     fontSize: '16px',
-    color: '#94A3B8',
+    color: '#B0C2D3',
     marginBottom: '40px',
-    lineHeight: '1.6',
+    lineHeight: '1.7',
+    fontWeight: 500,
   },
   onboardingCycle: {
     display: 'flex',
@@ -2544,24 +2613,24 @@ const styles = {
     width: '72px',
     height: '72px',
     borderRadius: '50%',
-    border: '2px solid',
+    border: '1px solid',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   onboardingCycleEmoji: {
     fontSize: '14px',
-    fontWeight: '700',
-    letterSpacing: '1px',
+    fontWeight: 700,
+    letterSpacing: '2px',
   },
   onboardingCycleLabel: {
     fontSize: '14px',
-    color: '#CBD5E1',
-    fontWeight: '600',
+    color: '#F2F6FA',
+    fontWeight: 500,
   },
   onboardingCycleArrow: {
-    fontSize: '24px',
-    color: '#475569',
+    fontSize: '20px',
+    color: '#B0C2D3',
     marginBottom: '28px',
   },
   onboardingMerits: {
@@ -2575,21 +2644,24 @@ const styles = {
     gap: '12px',
     padding: '12px 0',
     fontSize: '16px',
-    color: '#CBD5E1',
+    color: '#F2F6FA',
+    fontWeight: 500,
   },
   onboardingMeritIcon: {
-    color: '#10B981',
-    fontSize: '10px',
+    color: '#5BA4B5',
+    fontSize: '8px',
   },
   onboardingSkipLogin: {
     background: 'transparent',
     border: 'none',
-    color: '#94A3B8',
-    fontSize: '15px',
+    color: '#B0C2D3',
+    fontSize: '14px',
     cursor: 'pointer',
     marginTop: '16px',
     padding: '12px 24px',
     textDecoration: 'underline',
+    fontFamily: 'inherit',
+    fontWeight: 500,
   },
   onboardingDots: {
     display: 'flex',
@@ -2599,8 +2671,8 @@ const styles = {
     marginBottom: '24px',
   },
   onboardingDot: {
-    width: '8px',
-    height: '8px',
+    width: '6px',
+    height: '6px',
     borderRadius: '50%',
   },
   onboardingNav: {
@@ -2611,23 +2683,87 @@ const styles = {
   },
   onboardingPrevButton: {
     background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.2)',
-    color: '#94A3B8',
-    padding: '12px 32px',
-    borderRadius: '12px',
+    border: '1px solid rgba(91, 164, 181, 0.25)',
+    color: '#B0C2D3',
+    padding: '10px 28px',
+    borderRadius: '22px',
     cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: '500',
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFamily: 'inherit',
   },
   onboardingNextButton: {
-    background: '#3B82F6',
+    background: 'linear-gradient(135deg, #5BA4B5, #4A8FA0)',
     border: 'none',
-    color: '#fff',
-    padding: '12px 32px',
-    borderRadius: '12px',
+    color: '#F2F6FA',
+    padding: '10px 28px',
+    borderRadius: '22px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFamily: 'inherit',
+    boxShadow: '0 4px 16px rgba(91, 164, 181, 0.25)',
+  },
+
+  // ── Guide (onboarding step 2) ──
+  guideSection: {
+    marginBottom: '24px',
+  },
+  guideSectionTitle: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#F2F6FA',
+    marginBottom: '20px',
+    textAlign: 'center',
+  },
+  guideStep: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    marginBottom: '20px',
+  },
+  guideStepNumber: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    background: 'rgba(91, 164, 181, 0.15)',
+    border: '1px solid #5BA4B5',
+    color: '#8ED1DE',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+    fontSize: '14px',
+    flexShrink: 0,
+  },
+  guideStepContent: {
+    flex: 1,
+  },
+  guideStepTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#F2F6FA',
+    margin: '0 0 4px 0',
+  },
+  guideStepDesc: {
+    fontSize: '14px',
+    color: '#B0C2D3',
+    margin: 0,
+    lineHeight: '1.6',
+    fontWeight: 500,
+  },
+  guideCloseButton: {
+    width: '100%',
+    background: 'linear-gradient(135deg, #5BA4B5, #4A8FA0)',
+    color: '#F2F6FA',
+    border: 'none',
+    padding: '14px',
+    borderRadius: '30px',
     cursor: 'pointer',
     fontSize: '16px',
-    fontWeight: '600',
+    fontWeight: 600,
+    fontFamily: 'inherit',
+    boxShadow: '0 4px 16px rgba(91, 164, 181, 0.25)',
   },
 };
 
